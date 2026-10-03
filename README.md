@@ -49,14 +49,24 @@ poly hello.poly -o hello.glb        # export glTF, colours included
 
 ```mermaid
 flowchart LR
-  src["hello.poly<br/>box 30 20 10 #124; fillet 2"]
-  kernel["poly<br/>parse, then build with<br/>OpenCascade (WebAssembly)"]
-  solid(["B-Rep solid"])
-  stl["hello.stl<br/>3D printing"]
-  glb["hello.glb<br/>web viewers, with colours"]
-  src --> kernel --> solid
-  solid -- "poly hello.poly" --> stl
-  solid -- "-o hello.glb" --> glb
+  src["hello.poly<br/>box 30 20 10<br/>#124; fillet 2"]
+  subgraph poly
+    lex["lexer<br/>tokens"]
+    parse["parser<br/>AST"]
+    val["validator<br/>context check"]
+    ev["evaluator<br/>step by step"]
+    occt[("OpenCascade<br/>WebAssembly")]
+    lex --> parse --> val --> ev
+    ev <--> occt
+  end
+  solid(["B-Rep<br/>solid"])
+  mesh["tessellate<br/>triangles"]
+  stl["hello.stl"]
+  glb["hello.glb<br/>with colours"]
+  src --> lex
+  ev --> solid --> mesh
+  mesh --> stl
+  mesh --> glb
 ```
 
 ## Examples
