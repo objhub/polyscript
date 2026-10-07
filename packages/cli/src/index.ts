@@ -9,6 +9,7 @@
  */
 
 import { readFileSync } from 'node:fs';
+import { spawn } from 'node:child_process';
 import { basename, dirname, resolve, extname, relative } from 'node:path';
 import { Command } from 'commander';
 import {
@@ -876,6 +877,53 @@ program
       })),
     }, lines);
     process.exit(EXIT_OK);
+  });
+
+const LIVE_URL = 'https://live.objhub.org/';
+const LIVE_URL_MAX = 16 * 1024;
+
+function openInBrowser(url: string): Promise<boolean> {
+  const [cmd, args] =
+    process.platform === 'darwin' ? ['open', [url]]
+    : process.platform === 'win32' ? ['rundll32', ['url.dll,FileProtocolHandler', url]]
+    : ['xdg-open', [url]];
+  return new Promise((done) => {
+    const child = spawn(cmd, args, { detached: true, stdio: 'ignore' });
+    child.on('error', () => done(false));
+    child.on('spawn', () => { child.unref(); done(true); });
+  });
+}
+
+program
+  .command('live <file>')
+  .description('Open the file in the PolyScript Live editor (live.objhub.org)')
+  .option('--print', 'Print the URL instead of opening a browser')
+  .option('--json', 'Machine-readable JSON report on stdout')
+  .action(async (file: string, opts: { print?: boolean; json?: boolean }) => {
+    const source = readInput(file);
+    const name = basename(file);
+    const url = `${LIVE_URL}?code=${encodeURIComponent(source)}`;
+    const diags: Diagnostic[] = [];
+    let ast: Program | undefined;
+    try { ast = parse(source); } catch { /* the editor shows syntax errors itself */ }
+    if (ast?.statements.some((s) => s.type === 'Import')) {
+      diags.push(makeDiagnostic('live.import', 'warning',
+        'the Live editor cannot read imported files',
+        { hint: 'inline the imported definitions, or build locally' }));
+    }
+    if (url.length > LIVE_URL_MAX) {
+      diags.push(makeDiagnostic('live.too-long', 'warning',
+        `the URL is ${url.length} characters; the server accepts up to ${LIVE_URL_MAX}`,
+        { hint: 'shorten the source, or paste it into the editor' }));
+    }
+    if (!opts.print && !(await openInBrowser(url))) {
+      diags.push(makeDiagnostic('live.no-browser', 'error',
+        'could not start a browser', { hint: 'open the URL yourself' }));
+    }
+    const ok = !diags.some((d) => d.severity === 'error');
+    if (!opts.json) printDiagnostics(diags, name);
+    emit(!!opts.json, { ok, phase: 'live', file: name, diagnostics: diags, url }, [url]);
+    process.exit(ok ? EXIT_OK : EXIT_IO);
   });
 
 program.parse();

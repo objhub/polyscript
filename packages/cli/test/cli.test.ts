@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { writeFileSync, unlinkSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -103,5 +103,47 @@ describe('CLI', () => {
   it('check — missing file', () => {
     const { code } = run(['check', join(tmpdir(), 'nonexistent.poly')]);
     expect(code).toBe(1);
+  });
+});
+
+describe('live', () => {
+  function live(source: string, extra: string[] = []) {
+    const f = join(tmpdir(), 'polyscript-cli-live.poly');
+    writeFileSync(f, source);
+    const r = spawnSync('node', [CLI, 'live', f, '--print', ...extra], { encoding: 'utf-8' });
+    unlinkSync(f);
+    return { stdout: r.stdout.trim(), stderr: r.stderr, code: r.status };
+  }
+
+  it('prints the editor URL with the source in ?code=', () => {
+    const src = 'box 30 20 10 | fillet 2\n# 角 & ?\n';
+    const { stdout, stderr, code } = live(src);
+    expect(code).toBe(0);
+    expect(stderr).toBe('');
+    const url = new URL(stdout);
+    expect(url.origin).toBe('https://live.objhub.org');
+    expect(url.searchParams.get('code')).toBe(src);
+  });
+
+  it('warns that imports cannot be resolved in the editor', () => {
+    const { stderr, code } = live('import "lib.poly"\nbox 1 1 1\n');
+    expect(code).toBe(0);
+    expect(stderr).toContain('live.import');
+  });
+
+  it('warns when the URL exceeds the server limit', () => {
+    const { stderr, code } = live(`box 1 1 1\n# ${'x'.repeat(17000)}\n`);
+    expect(code).toBe(0);
+    expect(stderr).toContain('live.too-long');
+  });
+
+  it('--json reports the URL and the diagnostics as one object', () => {
+    const { stdout, code } = live('import "lib.poly"\nbox 1 1 1\n', ['--json']);
+    expect(code).toBe(0);
+    const r = JSON.parse(stdout);
+    expect(r.ok).toBe(true);
+    expect(r.phase).toBe('live');
+    expect(new URL(r.url).searchParams.get('code')).toBe('import "lib.poly"\nbox 1 1 1\n');
+    expect(r.diagnostics.map((d: { code: string }) => d.code)).toEqual(['live.import']);
   });
 });

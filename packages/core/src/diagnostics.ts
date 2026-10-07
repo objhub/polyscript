@@ -25,7 +25,7 @@ export type Severity = 'error' | 'warning' | 'info';
  * `syntax.` parse, `context.`/`arg.`/`def.`/`call.` validation, `selector.`/`eval.` runtime,
  * `check.` post-build observations (informational -- never fail a build --
  * except `check.sweep-distorted`, a kernel warning that fails under --strict),
- * `param.`/`io.` the CLI's own surface.
+ * `param.`/`io.`/`live.` the CLI's own surface.
  */
 export const DIAGNOSTIC_CODES = [
   'syntax.parse',
@@ -49,6 +49,9 @@ export const DIAGNOSTIC_CODES = [
   'param.commented',
   'param.unknown-option',
   'io.read',
+  'live.import',
+  'live.too-long',
+  'live.no-browser',
 ] as const;
 
 export type DiagnosticCode = (typeof DIAGNOSTIC_CODES)[number];
@@ -361,6 +364,26 @@ const EXPLANATIONS: Record<DiagnosticCode, Explanation> = {
     title: 'The file could not be read',
     why: 'Wrong path, or no permission.',
     fix: 'Check the path. `-` reads the source from stdin.',
+  },
+  'live.import': {
+    title: 'The file imports other files, which the Live editor cannot read',
+    why: 'poly live sends only this file\'s source in the URL. The editor runs in\n'
+      + 'the browser with no access to your disk, so every import fails there.',
+    fix: 'Paste the imported definitions into the file before opening it, or\n'
+      + 'build it locally with `poly build`.',
+  },
+  'live.too-long': {
+    title: 'The URL is longer than the Live editor\'s server accepts',
+    why: 'The source travels URL-encoded in the query string, and the server\n'
+      + 'refuses request URLs over 16 KB, so the page may not load at all.',
+    fix: 'Shorten the source (comments count too), or copy and paste it into\n'
+      + 'the editor at https://live.objhub.org instead.',
+  },
+  'live.no-browser': {
+    title: 'No browser could be started',
+    why: 'poly live opens the URL with `open` (macOS), `xdg-open` (Linux) or the\n'
+      + 'Windows URL handler. Over SSH or in a container there is usually none.',
+    fix: 'Open the printed URL yourself, or pass --print to only print it.',
   },
 };
 

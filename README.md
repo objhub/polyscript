@@ -184,6 +184,7 @@ poly section model.poly        # cut with a plane, report the contours in mm
 poly section model.poly --plane Z=10 -o cut.svg
 poly diff before.poly after.poly   # did the edit change the geometry, and where
 poly explain selector.empty    # what a diagnostic code means and how to fix it
+poly live model.poly           # open it in the Live editor in the browser (--print: URL only)
 poly dump-ast model.poly [--pretty]
 ```
 
