@@ -15,7 +15,7 @@ import { Command } from 'commander';
 import {
   parse, ParseError, validate, evaluate, resultShape, resultColorParts,
   extractParams, unknownParamOptions, PARAM_OPTIONS, Trace, drainDiagnostics, makeDiagnostic, formatDiagnostic, explain,
-  DIAGNOSTIC_CODES, asDiagnosticCode, fingerprint, runChecks,
+  DIAGNOSTIC_CODES, asDiagnosticCode, fingerprint, runChecks, bundleImports, BundleError,
 } from '@polyscript/core';
 import type { Value, Diagnostic, ValidationError, Program, EvalError } from '@polyscript/core';
 import { buildOverrides, unknownParams, checkOverrideTypes, commentedParamLines } from './params.js';
@@ -900,16 +900,29 @@ program
   .option('--print', 'Print the URL instead of opening a browser')
   .option('--json', 'Machine-readable JSON report on stdout')
   .action(async (file: string, opts: { print?: boolean; json?: boolean }) => {
-    const source = readInput(file);
     const name = basename(file);
+    // The editor holds one file and cannot read the disk, so imports are
+    // inlined first. A file that does not parse goes as it is: the editor
+    // shows the syntax error itself.
+    let source = readInput(file);
+    let inlined: string[] = [];
+    try {
+      ({ source, imported: inlined } = bundleImports(source, makeImportResolver(dirname(resolve(file)))));
+    } catch (e) {
+      if (!(e instanceof ParseError)) {
+        const d = makeDiagnostic('live.import', 'error', (e as Error).message, {
+          hint: 'the import is resolved next to the file, as poly build does',
+          ...(e instanceof BundleError && e.line ? { loc: { line: e.line, column: 1 } } : {}),
+        });
+        if (!opts.json) printDiagnostics([d], name);
+        emit(!!opts.json, { ok: false, phase: 'live', file: name, diagnostics: [d] }, []);
+        process.exit(EXIT_IO);
+      }
+    }
     const url = `${LIVE_URL}?code=${encodeURIComponent(source)}`;
     const diags: Diagnostic[] = [];
-    let ast: Program | undefined;
-    try { ast = parse(source); } catch { /* the editor shows syntax errors itself */ }
-    if (ast?.statements.some((s) => s.type === 'Import')) {
-      diags.push(makeDiagnostic('live.import', 'warning',
-        'the Live editor cannot read imported files',
-        { hint: 'inline the imported definitions, or build locally' }));
+    if (inlined.length > 0 && !opts.json) {
+      console.error(`${name}: inlined ${inlined.map((p) => `"${p}"`).join(', ')}`);
     }
     if (url.length > LIVE_URL_MAX) {
       diags.push(makeDiagnostic('live.too-long', 'warning',
@@ -922,7 +935,7 @@ program
     }
     const ok = !diags.some((d) => d.severity === 'error');
     if (!opts.json) printDiagnostics(diags, name);
-    emit(!!opts.json, { ok, phase: 'live', file: name, diagnostics: diags, url }, [url]);
+    emit(!!opts.json, { ok, phase: 'live', file: name, diagnostics: diags, inlined, url }, [url]);
     process.exit(ok ? EXIT_OK : EXIT_IO);
   });
 

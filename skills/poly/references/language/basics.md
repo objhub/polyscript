@@ -45,7 +45,9 @@ import "gear"
 spur_gear 12 2 | extrude 8
 ```
 
-Imports are resolved relative to the importing file's directory.
+Imports are resolved relative to the importing file's directory. Only the file's `def`s and assignments are brought in; its shapes and its own imports are ignored.
+
+Where a model can be only one file -- opened in the Live editor with `poly live`, or uploaded to objhub -- exactly that part is inlined in place of the `import` line.
 
 ## Comments
 

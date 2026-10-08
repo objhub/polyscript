@@ -9,7 +9,7 @@ whole reference (~11k tokens together). Tokens are approximate.
 
 | File | Covers | Tokens | Starts with |
 |---|---|---|---|
-| `basics.md` | Overview<br>Variables<br>Import<br>Comments | ~200 | PolyScript is a pipe-based language for parametric CAD modeling. Shapes are created with primitives and tra... |
+| `basics.md` | Overview<br>Variables<br>Import<br>Comments | ~300 | PolyScript is a pipe-based language for parametric CAD modeling. Shapes are created with primitives and tra... |
 | `primitives-3d.md` | Primitives > 3D | ~500 | `cone r1 r2 h` creates a frustum. `r1` is the bottom radius, `r2` is the top radius, `h` is the height. Set... |
 | `primitives-position-convention.md` | Primitives > Position Convention | ~300 | 3D primitives and `extrude` follow different placement rules along the Z axis. Mixing them without care is ... |
 | `primitives-2d.md` | Primitives > 2D | ~1000 | 2D primitives produce **faces**. Use `\| extrude`, `\| cut`, `\| revolve`, or `\| loft` to create solids. |

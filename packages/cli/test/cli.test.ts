@@ -125,10 +125,25 @@ describe('live', () => {
     expect(url.searchParams.get('code')).toBe(src);
   });
 
-  it('warns that imports cannot be resolved in the editor', () => {
-    const { stderr, code } = live('import "lib.poly"\nbox 1 1 1\n');
+  it("inlines imports, since the editor cannot read the disk", () => {
+    const lib = join(tmpdir(), 'polyscript-cli-live-lib.poly');
+    writeFileSync(lib, 'def peg($h) = cylinder 2 $h\npeg(1)\n');
+    const { stdout, stderr, code } = live('import "polyscript-cli-live-lib"\npeg(10)\n');
+    unlinkSync(lib);
     expect(code).toBe(0);
+    expect(stderr).toContain('inlined "polyscript-cli-live-lib"');
+    const src = new URL(stdout).searchParams.get('code')!;
+    expect(src).toContain('def peg($h) = cylinder 2 $h');
+    expect(src).not.toMatch(/^import /m);
+    expect(src).not.toContain('peg(1)\n');
+  });
+
+  it('stops when an import cannot be found', () => {
+    const { stdout, stderr, code } = live('import "no-such-lib"\nbox 1 1 1\n');
+    expect(code).toBe(1);
+    expect(stdout).toBe('');
     expect(stderr).toContain('live.import');
+    expect(stderr).toContain(':1:1');
   });
 
   it('warns when the URL exceeds the server limit', () => {
@@ -137,13 +152,14 @@ describe('live', () => {
     expect(stderr).toContain('live.too-long');
   });
 
-  it('--json reports the URL and the diagnostics as one object', () => {
-    const { stdout, code } = live('import "lib.poly"\nbox 1 1 1\n', ['--json']);
+  it('--json reports the URL, what was inlined and the diagnostics as one object', () => {
+    const lib = join(tmpdir(), 'polyscript-cli-live-lib2.poly');
+    writeFileSync(lib, 'w = 3\n');
+    const { stdout, code } = live('import "polyscript-cli-live-lib2"\nbox w w w\n', ['--json']);
+    unlinkSync(lib);
     expect(code).toBe(0);
     const r = JSON.parse(stdout);
-    expect(r.ok).toBe(true);
-    expect(r.phase).toBe('live');
-    expect(new URL(r.url).searchParams.get('code')).toBe('import "lib.poly"\nbox 1 1 1\n');
-    expect(r.diagnostics.map((d: { code: string }) => d.code)).toEqual(['live.import']);
+    expect(r).toMatchObject({ ok: true, phase: 'live', inlined: ['polyscript-cli-live-lib2'], diagnostics: [] });
+    expect(new URL(r.url).searchParams.get('code')).toContain('w = 3');
   });
 });

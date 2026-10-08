@@ -1,4 +1,6 @@
 export { preprocess } from './preprocessor.js';
+export { bundleImports, BundleError } from './bundle.js';
+export type { BundleResult } from './bundle.js';
 export type { PreprocessResult } from  './preprocessor.js';
 export { Lexer, TokenType } from './lexer.js';
 export type { Token } from './lexer.js';

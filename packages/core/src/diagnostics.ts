@@ -377,11 +377,12 @@ const EXPLANATIONS: Record<DiagnosticCode, Explanation> = {
     fix: 'Check the path. `-` reads the source from stdin.',
   },
   'live.import': {
-    title: 'The file imports other files, which the Live editor cannot read',
-    why: 'poly live sends only this file\'s source in the URL. The editor runs in\n'
-      + 'the browser with no access to your disk, so every import fails there.',
-    fix: 'Paste the imported definitions into the file before opening it, or\n'
-      + 'build it locally with `poly build`.',
+    title: 'An import could not be inlined for the Live editor',
+    why: 'The editor holds one file and cannot read your disk, so poly live copies\n'
+      + "each imported file's defs and assignments in place of its import line.\n"
+      + 'This one could not be found or read, next to the file being opened.',
+    fix: 'Check the import path: it is relative to the file, `.poly` optional,\n'
+      + 'and may not leave its directory. `poly check` reports the same import.',
   },
   'live.too-long': {
     title: 'The URL is longer than the Live editor\'s server accepts',
