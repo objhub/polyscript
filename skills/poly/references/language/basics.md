@@ -1,6 +1,6 @@
 # PolyScript language: Overview
 
-> GENERATED from docs/content/en/language.md (Overview; Variables; Functions; Import; Comments) -- do not edit.
+> GENERATED from docs/content/en/language.md (Overview; Variables; Import; Comments) -- do not edit.
 > Change the docs page, then run: bun scripts/gen-skill-docs.ts
 
 ## Overview
@@ -33,17 +33,6 @@ box w h 10
 # $-prefixed form also works (backward compatible)
 $w = 80
 box $w $h 10
-```
-
-## Functions
-
-Single-expression functions with `def`:
-
-```
-def standoff($r, $h, $hole_r) = cylinder $r $h | diff cylinder $hole_r $h
-
-box 80 60 3
- | union standoff 4 10 1.5 at:10 10
 ```
 
 ## Import

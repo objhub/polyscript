@@ -41,3 +41,14 @@ box 10 10 10 - cylinder 3 20         # ✗ parse error
 box 10 10 10 | diff (cylinder 3 20)  # ✓ reads better
 ```
 
+A long expression can break at an operator, which may end one line or start the next.
+A leading `-` is read by its spacing just as on one line, so leave a space after it for a subtraction: `- $b`.
+
+```
+body = $outer
+  - $cavity
+  - $hole
+grip = $handle *
+  $mask
+```
+

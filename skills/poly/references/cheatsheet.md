@@ -88,7 +88,7 @@ workplane XZ | wire [(0,0),(10,0),(10,10),(0,10),(0,0)] | sweep (circle 2)
 
 パイプ操作: `box 10 10 10 | diff (sphere 7)`
 ソースコマンド: `union [box 10 10 10, sphere 7]` / `diff [...]` / `inter [...]`
-形状演算子: `a + b`（union）/ `a - b`（diff）/ `a * b`（inter）。**変数か括弧の間だけ**: `(box 10 10 10) - (cylinder 3 20)` は可、`box 10 10 10 - cylinder 3 20` はパースエラー（引数の算術と衝突）。`base - holes | fillet 2` は `(base - holes) | fillet 2`。`*` を `+`/`-` と混ぜるときは括弧を書く
+形状演算子: `a + b`（union）/ `a - b`（diff）/ `a * b`（inter）。**変数か括弧の間だけ**: `(box 10 10 10) - (cylinder 3 20)` は可、`box 10 10 10 - cylinder 3 20` はパースエラー（引数の算術と衝突）。`base - holes | fillet 2` は `(base - holes) | fillet 2`。`*` を `+`/`-` と混ぜるときは括弧を書く。長い式は演算子の前後で改行できる(行頭の `-` は後ろに空白: `- $b`)
 
 ### 配置
 
@@ -254,6 +254,8 @@ box $w $w/2 10
 
 ```
 def name($args) = pipeline
+lift(box 10 10 10 | fillet 1, 5)   # 括弧の呼び出し: 引数にコマンドもパイプも書ける。区切りは ,
+cylinder r(3) 10                   # コマンドの引数の中の呼び出しは名前の直後に ( 。r (3) は arg.function-value
 ```
 
 ### インポート

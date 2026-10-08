@@ -1300,7 +1300,7 @@ export class Parser {
     // In greedy context, NAME( should NOT be treated as a function call;
     // the ( starts a new parenthesized greedy argument.
     if (token.type === TokenType.Identifier) {
-      if (!this.inGreedyContext && this.peek(1).type === TokenType.LParen) {
+      if (this.peek(1).type === TokenType.LParen && (!this.inGreedyContext || this.isNextAdjacent())) {
         return this.parseFuncCallExpr();
       }
       this.advance();
@@ -1334,9 +1334,17 @@ export class Parser {
     const startToken = this.current();
     const name = this.advance().value;
     this.expect(TokenType.LParen);
-    const { args, namedArgs } = this.parseCallArgs();
-    this.expect(TokenType.RParen);
-    return { type: 'FuncCall', name, args, namedArgs, loc: this.loc(startToken) };
+    // Inside the parentheses the greedy rules of an enclosing command no
+    // longer apply, as in parseTupleOrParen.
+    const prev = this.inGreedyContext;
+    this.inGreedyContext = false;
+    try {
+      const { args, namedArgs } = this.parseCallArgs();
+      this.expect(TokenType.RParen);
+      return { type: 'FuncCall', name, args, namedArgs, loc: this.loc(startToken) };
+    } finally {
+      this.inGreedyContext = prev;
+    }
   }
 
   private parseCallArgs(): { args: Expression[]; namedArgs: NamedArg[] } {
@@ -1365,11 +1373,12 @@ export class Parser {
       const startToken = this.current();
       const key = this.advance().value;
       this.advance(); // ':'
-      const value = this.parseExpr();
+      const value = this.parsePipeExpr();
       namedArgs.push({ key, value, loc: this.loc(startToken) });
       return 'named';
     }
-    args.push(this.parseExpr());
+    // A pipeline, as inside plain parentheses: `lift(box 10 10 10 | fillet 1)`.
+    args.push(this.parsePipeExpr());
     return 'positional';
   }
 

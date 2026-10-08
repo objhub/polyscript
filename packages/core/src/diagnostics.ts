@@ -32,6 +32,7 @@ export const DIAGNOSTIC_CODES = [
   'context.invalid-op',
   'arg.missing',
   'arg.count',
+  'arg.function-value',
   'def.shadows-builtin',
   'call.arity',
   'selector.empty',
@@ -184,6 +185,16 @@ const EXPLANATIONS: Record<DiagnosticCode, Explanation> = {
     why: 'The operation has no default for that argument, so there is nothing\n'
       + 'sensible to assume.',
     fix: 'Supply it: `fillet 2`, `shell 1.5`, `extrude 10`, `hole 3`.',
+  },
+  'arg.function-value': {
+    title: "A function's name was used as a value instead of being called",
+    why: 'Inside a command\'s arguments a call needs its parentheses right after\n'
+      + 'the name. With a space, `cylinder r (3) 10` reads as three arguments:\n'
+      + 'the function `r` itself, then `(3)`, then `10` -- and a function is not\n'
+      + 'a number, so the build would fail far from the cause.',
+    fix: 'Write the arguments right after the name, with no space:\n'
+      + '  def r($k) = $k * 2\n'
+      + '  cylinder r(3) 10',
   },
   'arg.count': {
     title: 'An operation got the wrong number of arguments for what it acts on',

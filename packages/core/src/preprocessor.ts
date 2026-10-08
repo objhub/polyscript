@@ -102,6 +102,16 @@ export function preprocess(source: string): PreprocessResult {
   // Join lines: next line starting with + continues
   applyReplace(/\n\s*\+/g, () => ' +');
 
+  // Join lines: next line starting with * / - continues, as + already does.
+  // No statement can start with * or /, and one starting with a unary minus
+  // only computes a number and throws it away. The spacing is kept, so
+  // `$a\n  - $b` is a subtraction and `$a\n  -$b` reads like `$a -$b` does on
+  // one line (a new argument in a command's argument list).
+  applyReplace(/\n\s*(?=[*\/-])/g, () => ' ');
+
+  // Join lines: a line ending with an arithmetic or shape operator continues.
+  applyReplace(/[-+*\/][ \t]*\n\s*/g, (m) => `${m[0]} `);
+
   // Join lines: next line starting with for continues (list comprehension)
   applyReplace(/\n\s*for\b/g, () => ' for');
 
