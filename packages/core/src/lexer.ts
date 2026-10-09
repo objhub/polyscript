@@ -76,11 +76,11 @@ export class Lexer {
   private pos = 0;
   private line = 1;
   private column = 1;
-  private charLineMap: number[] | null;
+  private charLineMap: ArrayLike<number> | null;
   /** Whether the most recent whitespace-skip consumed at least one space/tab. */
   private skippedSpace = false;
 
-  constructor(source: string, charLineMap?: number[]) {
+  constructor(source: string, charLineMap?: ArrayLike<number>) {
     this.source = source;
     this.charLineMap = charLineMap ?? null;
   }

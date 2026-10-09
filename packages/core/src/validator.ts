@@ -195,82 +195,91 @@ export function validate(program: Program): ValidationError[] {
   for (const stmt of program.statements) {
     validateStatement(stmt, errors, funcDefs, variables);
   }
-  validateBuiltinCalls(program, errors);
-  validateFunctionValues(program, errors);
+  validateCalls(program, errors);
 
   return errors;
 }
 
 /**
- * `cylinder r (3) 10`: with the space, the def `r` lands in the argument list
- * as a value and `(3)` as the next argument. A function is never a number or a
- * shape, so in a command's arguments or under an operator it can only be a
- * call that lost its parentheses. Arguments of a user function are left alone:
- * a def may take another def and call it.
+ * The checks that need every node, in one walk of the tree (it is the
+ * validator's main cost on a long file):
+ *
+ * - call.arity, see builtinArityError.
+ * - arg.function-value. `cylinder r (3) 10`: with the space, the def `r`
+ *   lands in the argument list as a value and `(3)` as the next argument. A
+ *   function is never a number or a shape, so in a command's arguments or
+ *   under an operator it can only be a call that lost its parentheses.
+ *   Arguments of a user function are left alone: a def may take another def
+ *   and call it.
  */
-function validateFunctionValues(program: Program, errors: ValidationError[]): void {
-  const defs = new Set(
-    program.statements.flatMap((s) => (s.type === 'FuncDef' ? [s.name] : [])),
-  );
-  if (defs.size === 0) return;
-  // A name also bound as a value somewhere is ambiguous here; leave it.
+function validateCalls(program: Program, errors: ValidationError[]): void {
+  const defs = new Set<string>();
+  for (const s of program.statements) if (s.type === 'FuncDef') defs.add(s.name);
+
+  type Ref = { name: string; loc?: { line: number; column: number } };
+  const arity: ValidationError[] = [];
+  const suspects: Ref[] = [];
+  // A name also bound as a value somewhere is ambiguous; leave it.
   const bound = new Set<string>();
-  walkNodes(program, (n) => {
-    if (n.type === 'Assignment') bound.add((n as unknown as { name: string }).name);
-    if (n.type === 'ListComp') bound.add((n as unknown as { variable: string }).variable);
-  });
-
-  const scan = (root: unknown, params: ReadonlySet<string>) => walkNodes(root, (n) => {
-    const node = n as Record<string, unknown>;
-    let operands: unknown[] = [];
-    if (n.type === 'BinOp') operands = [node.left, node.right];
-    else if (n.type === 'UnaryNeg') operands = [node.operand];
-    else if (n.type !== 'FuncCall') {
-      operands = [
-        ...((node.args as unknown[] | undefined) ?? []),
-        ...(((node.namedArgs as { value: unknown }[] | undefined) ?? []).map((a) => a.value)),
-      ];
-    }
-    for (const o of operands) {
-      const ref = o as { type?: string; name?: string; loc?: { line: number; column: number } };
-      if (ref?.type !== 'VarRef' || !ref.name) continue;
-      if (!defs.has(ref.name) || bound.has(ref.name) || params.has(ref.name)) continue;
-      errors.push({
-        code: 'arg.function-value',
-        message: `'${ref.name}' is a function, used here as a value`,
-        nodeType: 'VarRef',
-        hint: `call it with the arguments right after the name, no space: ${ref.name}(...)`,
-        ...(ref.loc ? { line: ref.loc.line, column: ref.loc.column } : {}),
-      });
-    }
-  });
-
   for (const stmt of program.statements) {
-    if (stmt.type === 'FuncDef') scan(stmt.body, new Set(stmt.params));
-    else scan(stmt, new Set());
+    const params: ReadonlySet<string> = stmt.type === 'FuncDef' ? new Set(stmt.params) : new Set();
+    walkNodes(stmt, (n) => {
+      const node = n as Record<string, unknown>;
+      if (n.type === 'FuncCall') {
+        const err = builtinArityError(n as FuncCall);
+        if (err) arity.push(err);
+        return;
+      }
+      if (defs.size === 0) return;
+      if (n.type === 'Assignment') bound.add(node.name as string);
+      else if (n.type === 'ListComp') bound.add(node.variable as string);
+      let operands: unknown[];
+      if (n.type === 'BinOp') operands = [node.left, node.right];
+      else if (n.type === 'UnaryNeg') operands = [node.operand];
+      else {
+        const args = node.args as unknown[] | undefined;
+        const named = node.namedArgs as { value: unknown }[] | undefined;
+        if (!args && !named) return;
+        operands = [...(args ?? []), ...(named ?? []).map((a) => a.value)];
+      }
+      for (const o of operands) {
+        const ref = o as { type?: string; name?: string; loc?: Ref['loc'] };
+        if (ref?.type === 'VarRef' && ref.name && defs.has(ref.name) && !params.has(ref.name)) {
+          suspects.push({ name: ref.name, loc: ref.loc });
+        }
+      }
+    });
+  }
+
+  errors.push(...arity);
+  for (const ref of suspects) {
+    if (bound.has(ref.name)) continue;
+    errors.push({
+      code: 'arg.function-value',
+      message: `'${ref.name}' is a function, used here as a value`,
+      nodeType: 'VarRef',
+      hint: `call it with the arguments right after the name, no space: ${ref.name}(...)`,
+      ...(ref.loc ? { line: ref.loc.line, column: ref.loc.column } : {}),
+    });
   }
 }
 
 /** `rad(a, b, c)`: calls to built-ins resolve before any def, so a count
  *  outside the built-in's range means the call was meant for something else. */
-function validateBuiltinCalls(program: Program, errors: ValidationError[]): void {
-  walkNodes(program, node => {
-    if (node.type !== 'FuncCall') return;
-    const call = node as FuncCall;
-    const arity = BUILTIN_ARITY[call.name];
-    if (!arity) return;
-    const [min, max] = arity;
-    const n = call.args.length;
-    if (n >= min && n <= max) return;
-    const want = min === max ? `${min}` : max === Infinity ? `at least ${min}` : `${min} to ${max}`;
-    errors.push({
-      code: 'call.arity',
-      message: `built-in '${call.name}' (${BUILTIN_GLOSS[call.name]}) takes ${want} argument${want === '1' ? '' : 's'}, got ${n}`,
-      nodeType: 'FuncCall',
-      hint: `if you meant your own function, name it something other than '${call.name}'`,
-      ...(call.loc ? { line: call.loc.line, column: call.loc.column } : {}),
-    });
-  });
+function builtinArityError(call: FuncCall): ValidationError | null {
+  const arity = BUILTIN_ARITY[call.name];
+  if (!arity) return null;
+  const [min, max] = arity;
+  const n = call.args.length;
+  if (n >= min && n <= max) return null;
+  const want = min === max ? `${min}` : max === Infinity ? `at least ${min}` : `${min} to ${max}`;
+  return {
+    code: 'call.arity',
+    message: `built-in '${call.name}' (${BUILTIN_GLOSS[call.name]}) takes ${want} argument${want === '1' ? '' : 's'}, got ${n}`,
+    nodeType: 'FuncCall',
+    hint: `if you meant your own function, name it something other than '${call.name}'`,
+    ...(call.loc ? { line: call.loc.line, column: call.loc.column } : {}),
+  };
 }
 
 /** Visit every AST node below `node`, whatever its type: anything with a
