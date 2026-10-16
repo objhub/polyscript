@@ -174,3 +174,62 @@ describe('diff', () => {
     expect(vol.delta).toMatch(/^\+/);
   }, 120000);
 });
+
+describe('assert and measure', () => {
+  const src = '$b = box 60 40 30 | faces ">Z" | shell 2\n';
+  beforeAll(() => {
+    writeFileSync(f('asserted.poly'), src + 'assert $b.solids == 1\nassert $b.bbox.z ~ 30\n$b\n');
+    writeFileSync(f('contradicted.poly'), src + 'assert $b.solids == 2\nprint "vol" $b.volume\n$b\n');
+  });
+
+  it('verify passes a model whose assertions hold, with the asserts in the trace', () => {
+    const r = run(['verify', f('asserted.poly'), '--json']);
+    expect(r.code).toBe(0);
+    const d = JSON.parse(r.stdout);
+    expect(d.ok).toBe(true);
+    const rows = d.trace.filter((s: { op: string }) => s.op.startsWith('assert'));
+    expect(rows.map((s: { context: string }) => s.context)).toEqual(['pass', 'pass']);
+  });
+
+  it('verify reports a failed assertion with both sides, still shows the trace, and exits 3', () => {
+    const r = run(['verify', f('contradicted.poly'), '--json']);
+    expect(r.code).toBe(3);
+    const d = JSON.parse(r.stdout);
+    expect(d.ok).toBe(false);
+    expect(d.phase).toBe('assert');
+    // faces, shell, and the assert itself as a row.
+    expect(d.trace.map((s: { op: string; context: string }) => s.context)).toEqual(['FaceSelection', '3D', 'FAIL']);
+    expect(d.shape.solids).toBe(1);
+    const failed = d.diagnostics.find((x: { code: string }) => x.code === 'assert.failed');
+    expect(failed.severity).toBe('error');
+    expect(failed.message).toBe('assert $b.solids == 2 failed (left: 1, right: 2)');
+    expect(failed.line).toBe(2);
+    const printed = d.diagnostics.find((x: { code: string }) => x.code === 'print');
+    expect(printed.severity).toBe('info');
+    expect(printed.message).toMatch(/^vol \d/);
+  });
+
+  it('build writes nothing when an assertion fails', () => {
+    const out = f('contradicted.stl');
+    const r = run(['build', f('contradicted.poly'), '-o', out]);
+    expect(r.code).toBe(3);
+    expect(existsSync(out)).toBe(false);
+    expect(r.stderr).toContain('assert.failed');
+  });
+
+  it('measure answers a query against the built model', () => {
+    expect(run(['measure', f('asserted.poly'), '$b.bbox.z']).stdout.trim()).toBe('30');
+    expect(run(['measure', f('asserted.poly'), '$b.solids == 1']).stdout.trim()).toBe('true');
+    const r = run(['measure', f('asserted.poly'), '($b | faces ">Z").solids', '--json']);
+    expect(r.code).toBe(0);
+    expect(JSON.parse(r.stdout).value).toBe(1);
+  });
+
+  it('measure refuses an unknown property with the list that applies', () => {
+    const r = run(['measure', f('asserted.poly'), '$b.weight', '--json']);
+    expect(r.code).toBe(4);
+    const [d] = JSON.parse(r.stdout).diagnostics;
+    expect(d.code).toBe('attr.unknown');
+    expect(d.hint).toContain('.volume');
+  });
+});

@@ -12,7 +12,8 @@
 import { parse, ParseError, type Program } from '@polyscript/core';
 import { validate } from '@polyscript/core';
 import { Evaluator } from '@polyscript/core';
-import { EvalError } from '@polyscript/core';
+import { EvalError, drainDiagnostics } from '@polyscript/core';
+import type { Diagnostic } from '@polyscript/core';
 import { extractParams as _extractParams } from '@polyscript/core';
 import type { ParamInfo, ParamSet } from '@polyscript/core';
 import type { Profile } from '@polyscript/core';
@@ -53,8 +54,12 @@ export interface BuildResult {
   /** The shape split by color (see colorParts in core). One part when the
    *  model is monochrome; pass to exportGLTF / tessellate per part. */
   parts: ColorPart[];
-  /** Errors collected across all phases. */
+  /** Errors collected across all phases. A failed `assert` is here too, with
+   *  phase 'assert', while the shape is still returned. */
   errors: BuildError[];
+  /** Everything the run reported besides errors: kernel warnings, `print`
+   *  lines (code `print`, severity info). Same records as `poly verify`. */
+  diagnostics?: Diagnostic[];
   /** Declared @param annotations found in the source. */
   params: ParamInfo[];
   /** Named parameter sets declared in the source. */
@@ -71,7 +76,9 @@ export interface BuildResult {
 }
 
 export interface BuildError {
-  phase: 'parse' | 'validate' | 'evaluate' | 'export';
+  /** `assert`: an assertion in the model did not hold. The shape was still
+   *  produced, so the viewer can show it next to the error. */
+  phase: 'parse' | 'validate' | 'evaluate' | 'assert' | 'export';
   message: string;
   line?: number;
   column?: number;
@@ -243,6 +250,15 @@ export class PolyScriptEngine {
       };
     }
 
+    // Failed assertions and print lines come out of the diagnostics sink,
+    // not as exceptions: the model built, and the viewer shows the shape
+    // next to the message.
+    const diagnostics = drainDiagnostics();
+    for (const d of diagnostics) {
+      if (d.severity !== 'error') continue;
+      errors.push({ phase: 'assert', message: d.message, code: d.code, hint: d.hint, line: d.line, column: d.column });
+    }
+
     // 5. Extract shape, color, and open wires from evaluation result
     const { shape, color, parts, openWires } = this.extractShapeAndColor(result);
     const lineMesh = this.tessellateWires(openWires);
@@ -264,6 +280,7 @@ export class PolyScriptEngine {
       color,
       parts,
       errors,
+      diagnostics,
       params: paramSet.params,
       parameterSets: paramSet.parameterSets,
       profile: paramSet.profile,

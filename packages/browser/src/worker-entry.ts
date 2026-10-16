@@ -9,6 +9,7 @@
 
 import { PolyScriptEngine } from './index.js';
 import type { BuildOptions, BuildError } from './index.js';
+import type { Diagnostic } from '@polyscript/core';
 import { hasDistinctColors, shapeInfo } from '@polyscript/core/ocp-kernel';
 import type { ColorPart, ShapeInfo } from '@polyscript/core/ocp-kernel';
 
@@ -64,6 +65,7 @@ export interface WorkerResponse {
   /** B-Rep summary of the built shape (absent for non-solids). */
   info?: ShapeInfo;
   errors?: BuildError[];
+  diagnostics?: Diagnostic[];
   params?: any[];
   parameterSets?: Record<string, Record<string, unknown>>;
   profile?: { entries: { name: string; values: Record<string, any> }[] };
@@ -163,6 +165,7 @@ function handleBuild(req: WorkerRequest): WorkerResponse {
       volume,
       info,
       errors: result.errors,
+      diagnostics: result.diagnostics,
       params: result.params,
       parameterSets: result.parameterSets,
       profile: result.profile,

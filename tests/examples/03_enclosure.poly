@@ -1,5 +1,5 @@
 # Enclosure
-box 100 60 40
+$case = box 100 60 40
  | faces >Z | shell 2
  | edges =Z | fillet 3
  | edges <Z | fillet 1
@@ -9,3 +9,9 @@ box 100 60 40
  | faces <X
  | points (grid 2 4 10)
  | hole 3
+
+# The intent, checked on every build: one piece, the size that was asked for.
+assert $case.solids == 1
+assert $case.bbox.x ~ 100
+assert $case.bbox.z ~ 40
+$case

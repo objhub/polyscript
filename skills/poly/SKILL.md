@@ -75,6 +75,25 @@ group type hidden`) are named in `references/cheatsheet.md` and explained in
 `references/language/param-annotation.md`; a misspelt option warns
 `param.unknown-option`.
 
+**Write the dimension table into the file as `assert` lines.** Bind the result
+to a variable, state what must hold, then emit the shape:
+
+```poly
+$case = box width depth height | faces >Z | shell wall
+assert $case.solids == 1                 # one piece
+assert $case.bbox.x ~ width              # the size that was asked for (1% tolerance)
+assert $case.bbox.z ~ height
+assert clear($case, $lid)                # parts do not interfere
+$case
+```
+
+A broken assert is `assert.failed` with the measured value quoted; `verify` and
+`build` exit 3 and `build` writes nothing. The asserts outlive the session: the
+next edit, by you or by someone else, is checked against the same intent. The
+properties (`volume area solids faces edges verts bbox valid`, `bbox.x/y/z/min/
+max/center`) and `~ ... tol:` are in `references/cheatsheet.md`. `print "name"
+$case.volume` reports a value in the same report without failing anything.
+
 Consult `references/cheatsheet.md` for syntax and `references/recipes.md` for
 the standard shapes (enclosure, boss, rib, drainage grid, revolved vessel).
 `references/vocabulary.md` maps the words of the request to operations.
@@ -118,7 +137,9 @@ Read the trace table and confirm all of:
       single part. `check.multiple-solids` says it in the report; several
       shipped examples are deliberately multi-solid, so investigate against
       your intent rather than treating it as an error
-- [ ] `bbox` matches the dimension table from step 1
+- [ ] `bbox` matches the dimension table from step 1 -- better, the table is
+      in the file as `assert` lines and every `assert` row in the trace reads
+      `pass`
 - [ ] each step moved `volume` the way it should: `shell` and `hole` reduce it,
       `fillet` reduces it slightly *and* raises the `faces` count. A step that
       changed nothing is reported as `check.no-effect`
@@ -253,6 +274,7 @@ poly info   FILE [--json]     # bbox, volume, area, solids, is_valid, topology, 
 poly diff   A.poly B.poly [--json]   # did the edit change the geometry, and where
 poly explain CODE             # the long form of a diagnostic code (no args: list them)
 
+poly measure FILE '<expr>' [--json]  # one value from the built model: '$lid.bbox.z', 'clear($a, $b)'
 poly section FILE [--plane xz,yz|Z=10] [-o OUT.svg] [--json]   # loop table in mm
 poly build FILE -o OUT.svg [--view iso|front,right] [--view-size 320] [--no-hidden]
 

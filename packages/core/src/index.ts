@@ -4,10 +4,11 @@ export type { BundleResult } from './bundle.js';
 export type { PreprocessResult } from  './preprocessor.js';
 export { Lexer, TokenType } from './lexer.js';
 export type { Token } from './lexer.js';
-export { Parser, ParseError, parse } from './parser.js';
+export { Parser, ParseError, parse, parseExpression } from './parser.js';
 export { validate } from './validator.js';
 export type { Context, ValidationError } from './validator.js';
-export { Evaluator, Environment, EvalError, evaluate, evaluateExpressions, resultShape, resultColorParts } from './evaluator.js';
+export { Evaluator, Environment, EvalError, evaluate, evaluateExpressions, resultShape, resultColorParts, isWpState } from './evaluator.js';
+export { formatValue, propertyOf, shapesClear } from './eval/measure.js';
 export type { Value, UserFunc, EvaluatorOptions } from './evaluator.js';
 export { Trace, selectionText } from './trace.js';
 export type { TraceStep, TraceOptions, TraceSelection } from './trace.js';
@@ -26,7 +27,7 @@ export type { ProfileEntry, Profile } from './profile.js';
 export type {
   SourceLocation,
   Node, Expression, PipeOp, Statement, NamedArg,
-  Program, Assignment, FuncDef, Import, Pipeline, ParamAnnotation,
+  Program, Assignment, FuncDef, Import, Assert, Print, PropAccess, Pipeline, ParamAnnotation,
   NumberLit, StringLit, BoolConst, VarRef, TagRef,
   TupleLit, ListLit, ListComp, SelectorLit,
   BinOp, UnaryNeg, IfExpr, FuncCall,

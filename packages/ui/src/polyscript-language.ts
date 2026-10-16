@@ -593,6 +593,8 @@ const annotations: Completion[] = [
 const keywords: Completion[] = [
   { label: 'def', type: 'keyword', info: 'Define function: def name($args) = ...' },
   { label: 'import', type: 'keyword', info: 'Import library: import "name"' },
+  { label: 'assert', type: 'keyword', info: 'Check an intent: assert $g.solids == 1 / assert $g.volume ~ 3225 tol:1%' },
+  { label: 'print', type: 'keyword', info: 'Report values: print "vol" $g.volume' },
   { label: 'if', type: 'keyword', info: 'Conditional: if cond then expr else expr' },
   { label: 'then', type: 'keyword', info: 'Then branch of if' },
   { label: 'else', type: 'keyword', info: 'Else branch of if' },
@@ -607,6 +609,7 @@ const keywords: Completion[] = [
 ];
 
 const builtinFunctions: Completion[] = [
+  { label: 'clear', type: 'function', info: 'True when two solids do not intersect: clear($a, $b)', apply: 'clear(' },
   { label: 'sin', type: 'function', info: 'Sine (radians): sin(x)', apply: 'sin(' },
   { label: 'cos', type: 'function', info: 'Cosine (radians): cos(x)', apply: 'cos(' },
   { label: 'tan', type: 'function', info: 'Tangent (radians): tan(x)', apply: 'tan(' },

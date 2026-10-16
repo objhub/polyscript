@@ -324,6 +324,12 @@ function validateStatement(
       break;
     case 'Import':
       break;
+    case 'Assert':
+      validateExpression(stmt.condition, errors, funcDefs, variables);
+      break;
+    case 'Print':
+      for (const a of stmt.args) validateExpression(a, errors, funcDefs, variables);
+      break;
     default:
       validateExpression(stmt, errors, funcDefs, variables);
   }
@@ -359,6 +365,9 @@ function validateExpression(
   if (expr.type === 'IndexAccess') {
     validateExpression(expr.object, errors, funcDefs, variables);
     validateExpression(expr.index, errors, funcDefs, variables);
+  }
+  if (expr.type === 'PropAccess') {
+    validateExpression(expr.object, errors, funcDefs, variables);
   }
 }
 

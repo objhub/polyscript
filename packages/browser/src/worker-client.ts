@@ -10,6 +10,7 @@
  */
 
 import type { BuildError } from './index.js';
+import type { Diagnostic } from '@polyscript/core';
 import type { ShapeInfo } from '@polyscript/core/ocp-kernel';
 import type { WorkerRequest, WorkerResponse, WorkerMesh, WorkerMeshPart } from './worker-entry.js';
 
@@ -24,7 +25,11 @@ export interface WorkerBuildResult {
   /** B-Rep summary: bbox, volume, area, solids, validity and the face / edge /
    *  vertex counts. Absent when the result is not a solid. */
   info?: ShapeInfo;
+  /** Failed `assert`s (phase 'assert') come with `ok: true` and a mesh: the
+   *  model built, it just contradicts itself. */
   errors: BuildError[];
+  /** `print` lines and kernel warnings (see BuildResult.diagnostics). */
+  diagnostics?: Diagnostic[];
   params: any[];
   parameterSets: Record<string, Record<string, unknown>>;
   profile?: { entries: { name: string; values: Record<string, any> }[] };
@@ -149,6 +154,7 @@ export class PolyWorker {
       volume: resp.volume,
       info: resp.info,
       errors: resp.errors ?? [],
+      diagnostics: resp.diagnostics,
       params: resp.params ?? [],
       parameterSets: resp.parameterSets ?? {},
       profile: resp.profile,

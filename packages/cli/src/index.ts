@@ -13,7 +13,7 @@ import { spawn } from 'node:child_process';
 import { basename, dirname, resolve, extname, relative } from 'node:path';
 import { Command } from 'commander';
 import {
-  parse, ParseError, validate, evaluate, resultShape, resultColorParts,
+  parse, parseExpression, ParseError, validate, Evaluator, resultShape, resultColorParts, formatValue, isWpState,
   extractParams, unknownParamOptions, PARAM_OPTIONS, Trace, drainDiagnostics, makeDiagnostic, formatDiagnostic, explain,
   DIAGNOSTIC_CODES, asDiagnosticCode, fingerprint, runChecks, bundleImports, BundleError,
 } from '@polyscript/core';
@@ -177,10 +177,16 @@ interface LoadOptions {
   trace?: boolean;
   timing?: boolean;
   json?: boolean;
+  /** Return the model even when one of its `assert`s failed; the caller
+   *  reports and exits. Default: fail right here. */
+  keepGoing?: boolean;
 }
 
 interface LoadedModel {
   oc: any;
+  /** The evaluator after the run, with every top-level binding still in
+   *  scope: `measure` evaluates its query against it. */
+  evaluator: Evaluator;
   result: Value;
   shape: any | null;
   info: ShapeInfoLike | null;
@@ -269,14 +275,16 @@ async function loadModel(file: string, opts: LoadOptions): Promise<LoadedModel> 
   }
 
   const trace = opts.trace ? new Trace({ timing: !!opts.timing }) : undefined;
+  const evaluator = new Evaluator({
+    oc,
+    importResolver: makeImportResolver(dirname(resolve(file))),
+    parseFn: parse,
+    overrides,
+    trace,
+  });
   let result: Value;
   try {
-    result = evaluate(ast, oc, {
-      importResolver: makeImportResolver(dirname(resolve(file))),
-      parseFn: parse,
-      overrides,
-      trace,
-    });
+    result = evaluator.evaluate(ast);
     lap('evaluate');
   } catch (e) {
     diagnostics.push(...drainDiagnostics());
@@ -285,6 +293,12 @@ async function loadModel(file: string, opts: LoadOptions): Promise<LoadedModel> 
     throw e;
   }
   diagnostics.push(...drainDiagnostics());
+  // A failed `assert` is an error diagnostic, not an exception: the model
+  // still built, so `build` and `verify` show the trace and the summary
+  // before failing (they pass keepGoing). Everything else stops here.
+  if (!opts.keepGoing && assertFailures(diagnostics).length > 0) {
+    fail('assert', [], EXIT_SEMANTIC);
+  }
 
   const shape = resultShape(oc, result);
   let info: ShapeInfoLike | null = null;
@@ -293,10 +307,15 @@ async function loadModel(file: string, opts: LoadOptions): Promise<LoadedModel> 
   }
 
   return {
-    oc, result, shape, info,
+    oc, evaluator, result, shape, info,
     fingerprint: info ? fingerprint(info) : undefined,
     diagnostics, trace, timing,
   };
+}
+
+/** The model's own assertions that did not hold. */
+function assertFailures(diags: Diagnostic[]): Diagnostic[] {
+  return diags.filter((d) => d.severity === 'error');
 }
 
 /** `1 solid  bbox 80x60x25  volume 15552.0  faces 11  fp 3f2a91b0c4d1` */
@@ -444,8 +463,23 @@ program
     asciiStl?: boolean; view?: string; viewSize?: number; hidden?: boolean; axes?: boolean; pngScale?: number;
   }) => {
     const name = basename(file);
-    const m = await loadModel(file, opts);
+    const m = await loadModel(file, { ...opts, keepGoing: true });
     const { exportShape, SVG_VIEWS } = await import('@polyscript/core/ocp-kernel');
+
+    const failed = assertFailures(m.diagnostics);
+    if (failed.length > 0) {
+      // Nothing is written: a model that contradicts its own assertions is
+      // not a result anyone should print. The trace still helps find out why.
+      const lines: string[] = [];
+      if (m.trace && !opts.json) lines.push(m.trace.render(), '');
+      if (!opts.json) printDiagnostics(m.diagnostics, name);
+      emit(!!opts.json, {
+        ok: false, phase: 'assert', file: name, diagnostics: m.diagnostics,
+        shape: m.info, fingerprint: m.fingerprint, trace: m.trace?.toList(),
+      }, lines);
+      console.error(`Error: ${failed.length} assertion(s) failed -- nothing written`);
+      process.exit(EXIT_SEMANTIC);
+    }
 
     // Determine output path
     const inputBase = basename(file, extname(file));
@@ -567,8 +601,9 @@ program
     define?: string[]; paramsFile?: string; o?: string; strict?: boolean; timing?: boolean; json?: boolean;
   }) => {
     const name = basename(file);
-    const m = await loadModel(file, { ...opts, trace: true });
+    const m = await loadModel(file, { ...opts, trace: true, keepGoing: true });
     const checks = runChecks(m.trace?.toList() as never, m.info as never);
+    const failed = assertFailures(m.diagnostics);
 
     const lines: string[] = [];
     const payload: Record<string, unknown> = {
@@ -611,9 +646,17 @@ program
       printDiagnostics(m.diagnostics, name);
       printDiagnostics(checks, name);
     }
-    lines.push(`${strictFailure(m.diagnostics).length && opts.strict ? '✗' : '✓'} ${name}: ${summaryLine(m)}`);
-
     const warned = strictFailure(m.diagnostics);
+    const bad = failed.length > 0 || (opts.strict && warned.length > 0);
+    lines.push(`${bad ? '✗' : '✓'} ${name}: ${summaryLine(m)}`);
+
+    if (failed.length > 0) {
+      payload.ok = false;
+      payload.phase = 'assert';
+      emit(!!opts.json, payload, lines);
+      console.error(`Error: ${failed.length} assertion(s) failed`);
+      process.exit(EXIT_SEMANTIC);
+    }
     if (opts.strict && warned.length > 0) {
       payload.ok = false;
       emit(!!opts.json, payload, lines);
@@ -621,6 +664,41 @@ program
       process.exit(EXIT_SEMANTIC);
     }
     emit(!!opts.json, payload, lines);
+    process.exit(EXIT_OK);
+  });
+
+// measure subcommand — one question about the built model, answered in
+// numbers. The query is an expression in the model's own language, evaluated
+// with every top-level binding in scope: `$lid.bbox.z`, `clear($lid, $body)`,
+// `($a | faces >Z).area`.
+program
+  .command('measure <file> <query>')
+  .description('Evaluate an expression against the built model, e.g. \'$lid.bbox.z\' or \'clear($a, $b)\'')
+  .option(
+    '-D, --define <value>',
+    'Override parameter (repeatable)',
+    (v: string, prev: string[] = []) => [...prev, v],
+    [] as string[],
+  )
+  .option('--params-file <path>', 'JSON file with parameter overrides')
+  .option('--json', 'Machine-readable JSON report on stdout')
+  .action(async (file: string, query: string, opts: { define?: string[]; paramsFile?: string; json?: boolean }) => {
+    const name = basename(file);
+    const m = await loadModel(file, opts);
+    let value: Value;
+    try {
+      value = m.evaluator.evalExpr(parseExpression(query));
+    } catch (e) {
+      const d = e instanceof ParseError ? parseDiagnostic(e) : evalDiagnostic(e as Error);
+      if (!opts.json) printDiagnostics([...m.diagnostics, d], name);
+      emit(!!opts.json, { ok: false, phase: 'measure', file: name, query, diagnostics: [...m.diagnostics, d] }, []);
+      process.exit(e instanceof ParseError ? EXIT_SYNTAX : EXIT_EXPORT);
+    }
+    const text = formatValue(m.oc, value);
+    if (!opts.json) printDiagnostics(m.diagnostics, name);
+    // A shape has no JSON form; its summary line stands in.
+    const json = isWpState(value) ? text : value;
+    emit(!!opts.json, { ok: true, phase: 'measure', file: name, query, value: json, text, diagnostics: m.diagnostics }, [text]);
     process.exit(EXIT_OK);
   });
 

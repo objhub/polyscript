@@ -290,11 +290,33 @@ if $x > 0 then $x else -$x
 | `radians(d)` / `rad(d)`、`degrees(r)` / `deg(r)` | 度とラジアンの変換 |
 | `len(list)` | リストの長さ |
 | `range(n)` / `range(a, b)` / `range(a, b, step)` | 整数のリスト（`b` は含まない） |
+| `clear(a, b)` | 2つのソリッドが重ならなければ `true`（接するだけなら `true`） |
 | `pi` | 円周率（定数） |
 
 ### 演算子（優先順位 高→低）
 
-`**` → `*` `/` `//` `%` → `+` `-` → 比較 → `and` → `or` → `|`
+`**` → `*` `/` `//` `%` → `+` `-` → 比較（`==` `!=` `<` `>` `<=` `>=` `~`） → `and` → `or` → `|`
+
+`a ~ b` は近似比較。大きい方の 1% 以内なら `true`（`assert` の `tol:` で変えられる）。
+
+### 計測と検証（`.プロパティ` / `assert` / `print`）
+
+```
+$g = box 80 60 25 | faces >Z | shell 2
+$g.volume  $g.area  $g.solids  $g.faces  $g.edges  $g.verts  $g.valid   # ソリッド
+$g.bbox.x  $g.bbox.y  $g.bbox.z  $g.bbox.min  $g.bbox.max  $g.bbox.center  # 寸法と角
+$s.area  $s.faces  $s.wires  $s.bbox                                      # 2D 形状
+
+assert $g.solids == 1              # 意図を書く。破れたら error assert.failed、build は書き出さない
+assert $g.bbox.x ~ 80              # 近似比較（既定 1%）
+assert $g.volume ~ 15552 tol:5     # 絶対許容差 5
+assert $g.volume ~ 15552 tol:0.1%  # 相対許容差
+assert clear($lid, $body)          # 干渉なし
+print "vol" $g.volume $g.bbox      # 値を報告（info print）。verify / --json / live に出る
+```
+
+プロパティは変数や括弧の直後に密着させる（`$g.volume`、`($g | faces >Z).solids`）。
+コマンドの引数にもそのまま書ける（`box $g.bbox.x 10 10`）。
 
 ---
 

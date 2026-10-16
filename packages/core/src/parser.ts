@@ -161,6 +161,17 @@ export class Parser {
 
   // --- Entry point ---
 
+  /** One expression and nothing else (see parseExpression). */
+  parseSingleExpression(): Expression {
+    this.skipNewlines();
+    const expr = this.parsePipeExpr();
+    this.skipNewlines();
+    if (!this.isAtEnd()) {
+      throw this.error(`Unexpected '${this.current().value}' after the expression`);
+    }
+    return expr;
+  }
+
   parseProgram(): Program {
     const startToken = this.current();
     const statements: Statement[] = [];
@@ -1559,6 +1570,15 @@ export class Parser {
 }
 
 // --- Public API ---
+
+/** Parse one expression, as `poly measure` reads its query: a pipeline, a
+ *  property access, arithmetic. Anything left over is an error. */
+export function parseExpression(source: string): Expression {
+  const { source: preprocessed, charLineMap } = preprocess(source);
+  const tokens = new Lexer(preprocessed, charLineMap).tokenize();
+  const parser = new Parser(tokens);
+  return parser.parseSingleExpression();
+}
 
 export function parse(source: string): Program {
   // Strip @profile block before preprocessing/lexing (preserves line numbers)

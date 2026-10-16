@@ -7,8 +7,8 @@
 
 import type {
   Program, Statement, Expression, PipeOp, Pipeline,
-  Assignment, FuncDef, Import, NamedArg,
-  BinOp, IfExpr, FuncCall,
+  Assignment, FuncDef, Import, Assert, Print, NamedArg,
+  BinOp, IfExpr, FuncCall, PropAccess,
   BoxExpr, CylinderExpr, SphereExpr, ConeExpr, TorusExpr, WedgeExpr, ThreadExpr,
   RectExpr, CircleExpr, EllipseExpr, PolylineExpr, PolygonExpr, TextExpr,
   LinePathExpr, ArcPathExpr, CenterArcPathExpr, BezierPathExpr, HelixPathExpr, SplinePathExpr, SketchExpr, WireLiteralExpr,
@@ -21,6 +21,7 @@ import type {
   AsTag, Fillet, Chamfer, Shell, Offset,
   Extrude, Revolve, Sweep, Loft, Cut,
   ColorOp, Translate, Rotate, Scale, Move, MoveTo, Mirror,
+  SourceLocation,
 } from '../ast.js';
 import type { WpState, OC, Pln, Shape } from '../ocp-kernel.js';
 import {
@@ -65,7 +66,8 @@ import { evalColorOp } from './pipe-color.js';
 import { type PipelineContext, nextContext, static2DType, shapeOperatorKind, OP_KEYWORD } from '../context.js';
 import { replaneTo } from '../ocp-kernel/faces.js';
 import type { CodedError } from '../diagnostics.js';
-import { asDiagnosticCode } from '../diagnostics.js';
+import { asDiagnosticCode, pushDiagnostic } from '../diagnostics.js';
+import { propertyOf, shapesClear, approxEqual, formatValue, DEFAULT_TOL } from './measure.js';
 
 // ---------------------------------------------------------------------------
 // Evaluator
@@ -97,6 +99,8 @@ export class Evaluator {
   private overrides: Record<string, any> | undefined;
   private trace?: EvaluatorOptions['trace'];
   private pipelineDepth = 0;
+  /** Tolerance for `~` while an `assert ... tol:` is being evaluated. */
+  private assertTol: { value: number; relative: boolean } | undefined;
 
   /**
    * Expression evaluation dispatch table.
@@ -142,6 +146,7 @@ export class Evaluator {
       'ListComp': (e) => this.evalListComp(e as ListComp),
       // Index access
       'IndexAccess': (e) => this.evalIndexAccess(e as IndexAccess),
+      'PropAccess': (e) => propertyOf(this.oc, this.evalExpr((e as PropAccess).object), (e as PropAccess).name),
       // Operators
       'BinOp': (e) => this.evalBinOp(e as BinOp),
       'UnaryNeg': (e) => -asNumber(this.evalExpr((e as { operand: Expression }).operand)),
@@ -248,6 +253,7 @@ export class Evaluator {
       // Only collect shapes from expression statements (bare shapes),
       // not from assignments or function definitions
       if (stmt.type !== 'Assignment' && stmt.type !== 'FuncDef' && stmt.type !== 'Import'
+          && stmt.type !== 'Assert' && stmt.type !== 'Print'
           && isWpState(lastValue)) {
         shapes.push(lastValue as WpState);
       }
@@ -286,8 +292,106 @@ export class Evaluator {
         return this.evalAssignment(stmt);
       case 'Import':
         return this.evalImport(stmt);
+      case 'Assert':
+        return this.evalAssert(stmt);
+      case 'Print':
+        return this.evalPrint(stmt);
       default:
         return this.evalExpr(stmt);
+    }
+  }
+
+  /**
+   * `assert <condition> [tol:...]`. A failure is recorded as an error
+   * diagnostic and evaluation goes on, so one run reports every assertion
+   * and still produces the shape and the trace (the CLI fails the build
+   * afterwards). A condition that is not a boolean is a mistake in the
+   * assertion itself and throws.
+   */
+  private evalAssert(node: Assert): Value {
+    const prevTol = this.assertTol;
+    this.assertTol = node.tol;
+    let ok: boolean;
+    let detail = '';
+    try {
+      const cond = node.condition;
+      const cmp = cond.type === 'BinOp' ? this.comparison(cond.op) : undefined;
+      if (cond.type === 'BinOp' && cmp) {
+        // Evaluate the two sides here so the message can quote them.
+        const left = this.evalExpr(cond.left);
+        const right = this.evalExpr(cond.right);
+        ok = cmp(left, right, cond.loc);
+        if (!ok) {
+          detail = `left: ${formatValue(this.oc, left)}, right: ${formatValue(this.oc, right)}`;
+          if (cond.op === '~') {
+            const t = node.tol ?? DEFAULT_TOL;
+            detail += `, tol: ${t.value}${t.relative ? '%' : ''}`;
+          }
+        }
+      } else {
+        const v = this.evalExpr(cond);
+        if (typeof v !== 'boolean') {
+          throw new EvalError(`assert expects a condition, got ${describeValue(v)}`, node.loc, {
+            hint: 'compare the value to something: assert $g.solids == 1',
+          });
+        }
+        ok = v;
+      }
+    } finally {
+      this.assertTol = prevTol;
+    }
+    if (!ok) {
+      pushDiagnostic({
+        code: 'assert.failed',
+        severity: 'error',
+        message: `assert ${node.text} failed${detail ? ` (${detail})` : ''}`,
+        hint: 'the geometry contradicts the intent written here: fix the pipeline, or the assertion',
+        line: node.loc?.line,
+        column: node.loc?.column,
+      });
+    }
+    this.trace?.record(`assert ${node.text}`, ok ? 'pass' : 'FAIL', null, this.pipelineDepth, undefined, node.loc?.line);
+    return ok;
+  }
+
+  /** `print a b c`: one info diagnostic with the values space-joined. */
+  private evalPrint(node: Print): Value {
+    const text = node.args.map((a) => formatValue(this.oc, this.evalExpr(a))).join(' ');
+    pushDiagnostic({
+      code: 'print',
+      severity: 'info',
+      message: text,
+      line: node.loc?.line,
+      column: node.loc?.column,
+    });
+    return null;
+  }
+
+  /** The comparison a BinOp spells, as a function, or undefined for any other
+   *  operator. Shared by evalBinOp and evalAssert. */
+  private comparison(op: string): ((l: Value, r: Value, loc?: SourceLocation) => boolean) | undefined {
+    switch (op) {
+      case '==': return (l, r) => l === r;
+      case '!=': return (l, r) => l !== r;
+      case '~': return (l, r, loc) => {
+        if (typeof l !== 'number' || typeof r !== 'number') {
+          throw new EvalError(`Type error: ~ compares numbers, got ${describeValue(l)} and ${describeValue(r)}`, loc);
+        }
+        return approxEqual(l, r, this.assertTol ?? DEFAULT_TOL);
+      };
+      case '<': case '>': case '<=': case '>=':
+        return (l, r, loc) => {
+          if ((typeof l === 'number' && typeof r === 'number') || (typeof l === 'string' && typeof r === 'string')) {
+            switch (op) {
+              case '<': return l < r;
+              case '>': return l > r;
+              case '<=': return l <= r;
+              default: return l >= r;
+            }
+          }
+          throw new EvalError(`Type error: cannot compare ${describeValue(l)} with ${describeValue(r)} using ${op}`, loc);
+        };
+      default: return undefined;
     }
   }
 
@@ -353,7 +457,9 @@ export class Evaluator {
       throw new EvalError(`Unknown expression type: ${(expr as {type: string}).type}`);
     } catch (e) {
       if (e instanceof EvalError && !e.loc && 'loc' in expr && expr.loc) {
-        throw new EvalError(e.message, expr.loc);
+        // Keep the code and the fix: `attr.unknown` thrown without a
+        // position would otherwise reach the CLI as a bare eval.error.
+        throw new EvalError(e.rawMessage, expr.loc, { code: e.code, hint: e.hint });
       }
       throw e;
     }
@@ -390,35 +496,9 @@ export class Evaluator {
       return String(left) + String(right);
     }
 
-    // Comparison: same-type comparison without coercion
-    if (node.op === '==' || node.op === '!=') {
-      const same = left === right;
-      return node.op === '==' ? same : !same;
-    }
-
-    // Ordering comparisons: type-checked per SPEC
-    if (node.op === '<' || node.op === '>' || node.op === '<=' || node.op === '>=') {
-      if (typeof left === 'number' && typeof right === 'number') {
-        switch (node.op) {
-          case '<': return left < right;
-          case '>': return left > right;
-          case '<=': return left <= right;
-          case '>=': return left >= right;
-        }
-      } else if (typeof left === 'string' && typeof right === 'string') {
-        switch (node.op) {
-          case '<': return left < right;
-          case '>': return left > right;
-          case '<=': return left <= right;
-          case '>=': return left >= right;
-        }
-      } else {
-        throw new EvalError(
-          `Type error: cannot compare ${typeof left} with ${typeof right} using ${node.op}`,
-          node.loc,
-        );
-      }
-    }
+    // Comparisons: same-type, no coercion; ordering is type-checked per SPEC.
+    const cmp = this.comparison(node.op);
+    if (cmp) return cmp(left, right, node.loc);
 
     const l = asNumber(left);
     const r = asNumber(right);
@@ -506,6 +586,12 @@ export class Evaluator {
 
   private evalFuncCall(node: FuncCall): Value {
     const { name, args: argExprs, namedArgs } = node;
+
+    // clear(a, b): the two solids share no volume (see measure.ts)
+    if (name === 'clear') {
+      if (argExprs.length !== 2) throw new EvalError(`clear() takes 2 arguments, got ${argExprs.length}`);
+      return shapesClear(this.oc, this.evalExpr(argExprs[0]), this.evalExpr(argExprs[1]));
+    }
 
     // Check math builtins
     if (name in MATH_FUNCS) {

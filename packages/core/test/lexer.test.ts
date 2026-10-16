@@ -234,7 +234,7 @@ describe('lexer — line/column tracking', () => {
 
 describe('lexer — error cases', () => {
   it('throws on unexpected character', () => {
-    expect(() => tokenize('~')).toThrow(/Unexpected character '~'/);
+    expect(() => tokenize('`')).toThrow(/Unexpected character '`'/);
   });
 
   it('throws on unexpected character with position', () => {
