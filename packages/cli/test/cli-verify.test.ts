@@ -233,3 +233,36 @@ describe('assert and measure', () => {
     expect(d.hint).toContain('.volume');
   });
 });
+
+describe('ops', () => {
+  it('lists every operation with its signature', () => {
+    const r = run(['ops']);
+    expect(r.code).toBe(0);
+    expect(r.stdout).toMatch(/^thread r pitch h +center: at: angle: land: depth: chamfer: +external thread/m);
+  });
+
+  it('prints one operation in full, and as JSON', () => {
+    const r = run(['ops', 'hole']);
+    expect(r.code).toBe(0);
+    expect(r.stdout).toContain('depth:');
+    expect(r.stdout).toContain('FaceSelection');
+    const j = JSON.parse(run(['ops', 'extrude', '--json']).stdout);
+    expect(j.ops[0].named[0].key).toBe('draft');
+    expect(j.ops[0].from.find((f: { context: string }) => f.context === 'Face').to).toBe('3D');
+  });
+
+  it('refuses an unknown operation with the list of known ones', () => {
+    const r = run(['ops', 'nope']);
+    expect(r.code).toBe(1);
+    expect(r.stderr).toContain('Known:');
+  });
+
+  it('check reports a named argument the operation does not read', () => {
+    writeFileSync(f('typo.poly'), 'thread 8 2 30 chamfar:true\n');
+    const r = run(['check', f('typo.poly'), '--json']);
+    expect(r.code).toBe(3);
+    const [d] = JSON.parse(r.stdout).diagnostics;
+    expect(d.code).toBe('arg.unknown-option');
+    expect(d.hint).toBe("did you mean 'chamfer:'?");
+  });
+});

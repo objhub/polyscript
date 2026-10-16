@@ -273,6 +273,8 @@ poly build  FILE -o OUT [--trace] [--timing] [--strict] [--json] [-D name=value]
 poly info   FILE [--json]     # bbox, volume, area, solids, is_valid, topology, fingerprint
 poly diff   A.poly B.poly [--json]   # did the edit change the geometry, and where
 poly explain CODE             # the long form of a diagnostic code (no args: list them)
+poly ops [KEYWORD] [--json]   # every operation's arguments, named arguments and contexts,
+                              # from the implementation. Check here before guessing a key
 
 poly measure FILE '<expr>' [--json]  # one value from the built model: '$lid.bbox.z', 'clear($a, $b)'
 poly section FILE [--plane xz,yz|Z=10] [-o OUT.svg] [--json]   # loop table in mm

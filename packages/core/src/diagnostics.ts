@@ -34,6 +34,7 @@ export const DIAGNOSTIC_CODES = [
   'arg.missing',
   'arg.count',
   'arg.function-value',
+  'arg.unknown-option',
   'def.shadows-builtin',
   'call.arity',
   'selector.empty',
@@ -199,6 +200,17 @@ const EXPLANATIONS: Record<DiagnosticCode, Explanation> = {
     fix: 'Write the arguments right after the name, with no space:\n'
       + '  def r($k) = $k * 2\n'
       + '  cylinder r(3) 10',
+  },
+  'arg.unknown-option': {
+    title: 'A named argument the operation does not read',
+    why: 'Named arguments are read by name, so a misspelt key (`chamfar:true`)\n'
+      + 'or one that belongs to another operation (`box ... dir:`) used to be\n'
+      + 'ignored without a word, and the feature was simply absent from the\n'
+      + 'shape. The message lists the keys the operation does read.',
+    fix: 'Use one of the listed keys, or drop the argument. `poly ops <name>`\n'
+      + 'prints every argument an operation takes:\n'
+      + '  thread 8 2 30 chamfer:true     # not chamfar:\n'
+      + '  cylinder 5 10 dir:(1,0,0)      # dir: is cylinder / cone only',
   },
   'arg.count': {
     title: 'An operation got the wrong number of arguments for what it acts on',

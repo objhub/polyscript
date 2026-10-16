@@ -19,6 +19,13 @@ export {
 export type { Diagnostic, DiagnosticCode, Severity, CodedError } from './diagnostics.js';
 export { fingerprint, FINGERPRINT_PRECISION } from './fingerprint.js';
 export { runChecks } from './checks.js';
+export { OP_SPECS, opSpec, unknownNamedArgs } from './ops.js';
+export { describeOps, opSignature, opDetail } from './ops-describe.js';
+export type { OpDescription } from './ops-describe.js';
+export type { OpSpec, ArgSpec, NamedArgSpec, UnknownNamedArg } from './ops.js';
+export { CONTEXT_OPS } from './validator.js';
+export { nextContext, OP_KEYWORD } from './context.js';
+export type { PipelineContext } from './context.js';
 export type { ShapeFacts } from './fingerprint.js';
 export { extractParams, PARAM_OPTIONS, unknownParamOptions } from './params.js';
 export type { ParamInfo, ParamSet } from './params.js';

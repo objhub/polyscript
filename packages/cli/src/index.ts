@@ -16,6 +16,7 @@ import {
   parse, parseExpression, ParseError, validate, Evaluator, resultShape, resultColorParts, formatValue, isWpState,
   extractParams, unknownParamOptions, PARAM_OPTIONS, Trace, drainDiagnostics, makeDiagnostic, formatDiagnostic, explain,
   DIAGNOSTIC_CODES, asDiagnosticCode, fingerprint, runChecks, bundleImports, BundleError,
+  describeOps, opSignature, opDetail,
 } from '@polyscript/core';
 import type { Value, Diagnostic, ValidationError, Program, EvalError } from '@polyscript/core';
 import { buildOverrides, unknownParams, checkOverrideTypes, commentedParamLines } from './params.js';
@@ -774,6 +775,29 @@ function compareShapes(a: ShapeInfoLike | null, b: ShapeInfoLike | null): ShapeC
   }
   return out;
 }
+
+// ops subcommand — what every operation takes, from the implementation.
+program
+  .command('ops [keyword]')
+  .description('List every operation with its arguments, named arguments and contexts; or one in full')
+  .option('--json', 'Machine-readable JSON on stdout')
+  .action((keyword: string | undefined, opts: { json?: boolean }) => {
+    const all = describeOps();
+    if (keyword) {
+      const d = all.find((o) => o.keyword === keyword);
+      if (!d) {
+        console.error(`poly: unknown operation '${keyword}'. Known: ${all.map((o) => o.keyword).join(' ')}`);
+        process.exit(1);
+      }
+      emit(!!opts.json, { ok: true, phase: 'ops', ops: [d] }, opDetail(d));
+      process.exit(EXIT_OK);
+    }
+    const width = Math.max(...all.map((o) => opSignature(o).length));
+    const lines = all.map((o) => `${opSignature(o).padEnd(width)}  ${o.desc}`);
+    lines.push('', 'Run `poly ops <keyword>` for the arguments, named arguments and contexts of one operation.');
+    emit(!!opts.json, { ok: true, phase: 'ops', ops: all }, lines);
+    process.exit(EXIT_OK);
+  });
 
 // explain subcommand — the long form of a diagnostic code.
 program

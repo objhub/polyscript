@@ -13,6 +13,7 @@ import type {
 import { nextContext, static2DType, shapeOperatorKind, opKeyword } from './context.js';
 import type { DiagnosticCode } from './diagnostics.js';
 import { BUILTIN_ARITY, BUILTIN_GLOSS } from './eval/types.js';
+import { unknownNamedArgs } from './ops.js';
 
 // --- Context types ---
 
@@ -205,6 +206,7 @@ export function validate(program: Program): ValidationError[] {
  * validator's main cost on a long file):
  *
  * - call.arity, see builtinArityError.
+ * - arg.unknown-option: a named argument no evaluator reads (ops.ts).
  * - arg.function-value. `cylinder r (3) 10`: with the space, the def `r`
  *   lands in the argument list as a value and `(3)` as the next argument. A
  *   function is never a number or a shape, so in a command's arguments or
@@ -225,6 +227,15 @@ function validateCalls(program: Program, errors: ValidationError[]): void {
     const params: ReadonlySet<string> = stmt.type === 'FuncDef' ? new Set(stmt.params) : new Set();
     walkNodes(stmt, (n) => {
       const node = n as Record<string, unknown>;
+      for (const u of unknownNamedArgs(n as Expression | PipeOp)) {
+        arity.push({
+          code: 'arg.unknown-option',
+          message: `'${u.keyword}' does not take '${u.key}:'${u.allowed.length ? ` (it takes ${u.allowed.map((k) => `${k}:`).join(' ')})` : ' (it takes no named arguments)'}`,
+          nodeType: n.type,
+          hint: u.nearest ? `did you mean '${u.nearest}:'?` : `see: poly ops ${u.keyword}`,
+          ...(u.loc ? { line: u.loc.line, column: u.loc.column } : {}),
+        });
+      }
       if (n.type === 'FuncCall') {
         const err = builtinArityError(n as FuncCall);
         if (err) arity.push(err);
