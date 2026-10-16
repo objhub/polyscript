@@ -5,7 +5,7 @@
 
 import type {
   Expression, PipeOp, Statement, NamedArg, Program,
-  Assignment, FuncDef, Import, Pipeline, ParamAnnotation,
+  Assignment, FuncDef, Import, Assert, Print, Pipeline, ParamAnnotation,
   SourceLocation,
 } from './ast.js';
 import { SOURCE_COMMANDS, KEYWORDS, SELECTOR_ALIASES } from './ast.js';
@@ -211,6 +211,14 @@ export class Parser {
     if (this.matchKeyword('def')) {
       return this.parseFuncDef();
     }
+    // assert condition [tol:n[%]]
+    if (this.matchKeyword('assert')) {
+      return this.parseAssert();
+    }
+    // print value ...
+    if (this.matchKeyword('print')) {
+      return this.parsePrint();
+    }
     // $name = expr  or  name = expr  (assignment)
     if (this.isAssignment()) {
       return this.parseAssignment();
@@ -250,6 +258,69 @@ export class Parser {
     const body = this.parsePipeExpr();
     if (this.match(TokenType.Newline)) this.advance();
     return { type: 'FuncDef', name, params, body, loc: this.loc(startToken) };
+  }
+
+  /**
+   * `assert <condition> [tol:<n>[%]]`. The condition is an ordinary
+   * expression (comparison, `and`/`or`, a call such as `clear($a, $b)`), so
+   * it stops at `tol:` by itself. `tol:` is read here rather than as an
+   * expression because `1%` would otherwise be a modulo with nothing on its
+   * right.
+   */
+  private parseAssert(): Assert {
+    const startToken = this.current();
+    this.advance(); // 'assert'
+    const condStart = this.pos;
+    const condition = this.parseExpr();
+    const text = this.tokenText(condStart, this.pos);
+    let tol: Assert['tol'];
+    if (this.match(TokenType.Identifier, 'tol') && this.peek(1).type === TokenType.Colon) {
+      this.advance();
+      this.advance();
+      const value = parseFloat(this.expect(TokenType.Number).value);
+      let relative = false;
+      if (this.match(TokenType.Percent) && this.isPrevAdjacent()) {
+        this.advance();
+        relative = true;
+      }
+      tol = { value, relative };
+    }
+    if (!this.isStatementEnd()) {
+      throw this.error(`Unexpected '${this.current().value}' after the assert condition`);
+    }
+    if (this.match(TokenType.Newline)) this.advance();
+    const node: Assert = { type: 'Assert', condition, text, loc: this.loc(startToken) };
+    if (tol) node.tol = tol;
+    return node;
+  }
+
+  /** `print <value> ...`: values are greedy arguments, like a command's. */
+  private parsePrint(): Print {
+    const startToken = this.current();
+    this.advance(); // 'print'
+    const args: Expression[] = [];
+    while (!this.isStatementEnd() && !this.match(TokenType.Pipe)) {
+      args.push(this.parseGreedyVal());
+    }
+    if (this.match(TokenType.Pipe)) {
+      throw this.error("print is a statement, not a pipe op: put the value in parentheses, e.g. print (box 1 1 1 | fillet 0.2)");
+    }
+    if (this.match(TokenType.Newline)) this.advance();
+    return { type: 'Print', args, loc: this.loc(startToken) };
+  }
+
+  /** The source spelling of tokens[from..to), reconstructed with one space
+   *  wherever the writer left whitespace. Used for messages that quote the
+   *  code back (`assert $g.solids == 1 failed`). */
+  private tokenText(from: number, to: number): string {
+    let out = '';
+    for (let i = from; i < to; i++) {
+      const t = this.tokens[i];
+      if (!t) break;
+      if (i > from && t.leadingSpace) out += ' ';
+      out += t.type === TokenType.String ? JSON.stringify(t.value) : t.value;
+    }
+    return out;
   }
 
   private parseAssignment(): Assignment {
@@ -1164,6 +1235,7 @@ export class Parser {
       [TokenType.EqEq]: '==', [TokenType.NotEq]: '!=',
       [TokenType.Lt]: '<', [TokenType.Gt]: '>',
       [TokenType.LtEq]: '<=', [TokenType.GtEq]: '>=',
+      [TokenType.Tilde]: '~',
     };
     while (compOps[this.current().type]) {
       const startToken = this.current();
@@ -1216,12 +1288,30 @@ export class Parser {
     // Postfix index access: expr[index]
     // In greedy context, only adjacent [ is index access (no whitespace: val[k]).
     // Spaced [ starts a new list-literal greedy arg (e.g. "box $x [1,2,3]").
-    while (this.match(TokenType.LBracket)
-        && (!this.inGreedyContext || this.isPrevAdjacent())) {
-      this.advance(); // consume [
-      const index = this.parseExpr();
-      this.expect(TokenType.RBracket);
-      base = { type: 'IndexAccess', object: base, index, loc: this.loc(startToken) } as Expression;
+    // Postfix property access: expr.name, same adjacency rule. The name may
+    // be a keyword (`$g.faces`, `$g.edges`): after a dot nothing else can
+    // follow, so there is no clash with the pipe ops of the same spelling.
+    for (;;) {
+      if (this.match(TokenType.LBracket)
+          && (!this.inGreedyContext || this.isPrevAdjacent())) {
+        this.advance(); // consume [
+        const index = this.parseExpr();
+        this.expect(TokenType.RBracket);
+        base = { type: 'IndexAccess', object: base, index, loc: this.loc(startToken) } as Expression;
+        continue;
+      }
+      if (this.match(TokenType.Dot) && (!this.inGreedyContext || this.isPrevAdjacent())) {
+        const dot = this.advance();
+        const nameTok = this.current();
+        if ((nameTok.type !== TokenType.Identifier && nameTok.type !== TokenType.Keyword)
+            || nameTok.line !== dot.line || nameTok.column !== dot.column + 1) {
+          throw this.error("Expected a property name right after '.', e.g. $g.volume");
+        }
+        this.advance();
+        base = { type: 'PropAccess', object: base, name: nameTok.value, loc: this.loc(dot) } as Expression;
+        continue;
+      }
+      break;
     }
 
     if (this.match(TokenType.DoubleStar)) {

@@ -25,6 +25,19 @@ export interface ParamAnnotation { type: 'ParamAnnotation'; options: Record<stri
 export interface Assignment { type: 'Assignment'; name: string; value: Expression; annotation?: ParamAnnotation; loc?: SourceLocation; }
 export interface FuncDef { type: 'FuncDef'; name: string; params: string[]; body: Expression; loc?: SourceLocation; }
 export interface Import { type: 'Import'; path: string; loc?: SourceLocation; }
+/** `assert <condition> [tol:<n>[%]]`. `text` is the condition as written, for
+ *  the failure message and the trace row. `tol` only affects `~` inside the
+ *  condition; `relative` is the `%` form. */
+export interface Assert {
+  type: 'Assert';
+  condition: Expression;
+  text: string;
+  tol?: { value: number; relative: boolean };
+  loc?: SourceLocation;
+}
+/** `print <value> ...`: the values, formatted and joined by a space, reach the
+ *  report as an `info` diagnostic. Geometry is untouched. */
+export interface Print { type: 'Print'; args: Expression[]; loc?: SourceLocation; }
 
 // --- Pipeline ---
 
@@ -42,6 +55,8 @@ export interface ListLit { type: 'ListLit'; elements: Expression[]; loc?: Source
 export interface ListComp { type: 'ListComp'; expr: Expression; variable: string; iterable: Expression; loc?: SourceLocation; }
 export interface SelectorLit { type: 'SelectorLit'; value: string; loc?: SourceLocation; }
 export interface IndexAccess { type: 'IndexAccess'; object: Expression; index: Expression; loc?: SourceLocation; }
+/** `$g.volume`, `$g.bbox.x`: a measured property of a shape (or of a bbox). */
+export interface PropAccess { type: 'PropAccess'; object: Expression; name: string; loc?: SourceLocation; }
 
 // --- Expressions ---
 
@@ -147,7 +162,7 @@ export function hasNamedArgs(node: Expression | PipeOp): node is NodeWithNamedAr
 
 export type Expression =
   | NumberLit | StringLit | BoolConst | VarRef | TagRef
-  | TupleLit | ListLit | ListComp | SelectorLit | IndexAccess
+  | TupleLit | ListLit | ListComp | SelectorLit | IndexAccess | PropAccess
   | BinOp | UnaryNeg | IfExpr | FuncCall
   | BoxExpr | CylinderExpr | SphereExpr | ConeExpr | TorusExpr | WedgeExpr | ThreadExpr
   | RectExpr | CircleExpr | EllipseExpr | PolylineExpr | PolygonExpr | TextExpr | SketchExpr
@@ -168,7 +183,7 @@ export type PipeOp =
   | ColorOp
   | Workplane | GridPipe | PolarPipe | Implicit2DPrimitive | Implicit3DPrimitive;
 
-export type Statement = Assignment | FuncDef | Import | Expression;
+export type Statement = Assignment | FuncDef | Import | Assert | Print | Expression;
 
 export type Node = Program | Statement | PipeOp | NamedArg;
 
@@ -215,7 +230,7 @@ export const SELECTOR_ALIASES: Record<string, string> = {
 export const KEYWORDS = new Set([
   ...SOURCE_COMMANDS,
   ...PIPE_OP_KEYWORDS,
-  'def', 'import',
+  'def', 'import', 'assert', 'print',
   'if', 'then', 'else', 'and', 'or',
   'for', 'in', 'range',
   'true', 'false', 'pi',

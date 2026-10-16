@@ -36,6 +36,11 @@ export enum TokenType {
   Colon = ':',
   Dollar = '$',
   DotDot = '..',
+  /** Property access: `$g.volume`. A lone `.` never starts a number here
+   *  (numbers begin with a digit), so it is unambiguous. */
+  Dot = '.',
+  /** Approximate equality (`a ~ b`, see assert). */
+  Tilde = '~',
   AtParam = '@param',
 
   Newline = 'Newline',
@@ -65,6 +70,8 @@ const SINGLE_TOKEN_MAP: Record<string, TokenType> = {
   '[': TokenType.LBracket,
   ']': TokenType.RBracket,
   ',': TokenType.Comma,
+  '.': TokenType.Dot,
+  '~': TokenType.Tilde,
   ':': TokenType.Colon,
   '$': TokenType.Dollar,
   '<': TokenType.Lt,

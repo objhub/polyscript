@@ -25,7 +25,8 @@ export type Severity = 'error' | 'warning' | 'info';
  * `syntax.` parse, `context.`/`arg.`/`def.`/`call.` validation, `selector.`/`eval.` runtime,
  * `check.` post-build observations (informational -- never fail a build --
  * except `check.sweep-distorted`, a kernel warning that fails under --strict),
- * `param.`/`io.`/`live.` the CLI's own surface.
+ * `assert.`/`print` the model's own statements (an `assert` that failed is an
+ * error; `print` is an info line), `param.`/`io.`/`live.` the CLI's own surface.
  */
 export const DIAGNOSTIC_CODES = [
   'syntax.parse',
@@ -42,6 +43,9 @@ export const DIAGNOSTIC_CODES = [
   'check.no-effect',
   'check.brep-invalid',
   'check.sweep-distorted',
+  'assert.failed',
+  'attr.unknown',
+  'print',
   'thread.short',
   'param.unknown',
   'param.type',
@@ -296,6 +300,37 @@ const EXPLANATIONS: Record<DiagnosticCode, Explanation> = {
     fix: 'Find the step that broke it with `poly verify --trace`: a jump in the\n'
       + 'face count or a solid count above 1 usually marks it. Avoid booleans\n'
       + 'whose tool exactly touches the material surface.',
+  },
+  'assert.failed': {
+    title: 'An assertion written in the model did not hold',
+    why: 'The model states an intent -- `assert $g.solids == 1`, `assert\n'
+      + '$case.bbox.x ~ 80` -- and the built geometry contradicts it. Nothing\n'
+      + 'crashed: the shape exists and looks healthy. The assertion is what\n'
+      + 'turns the mismatch into an error.',
+    fix: 'The message quotes the measured value. Decide which side is wrong:\n'
+      + 'the geometry (fix the pipeline) or the intent (fix the assert). For\n'
+      + '`~`, the tolerance is 1% of the larger value unless `tol:` says\n'
+      + 'otherwise:\n'
+      + '  assert $g.volume ~ 3225          # within 1%\n'
+      + '  assert $g.volume ~ 3225 tol:5    # within 5 (absolute)\n'
+      + '  assert $g.volume ~ 3225 tol:0.1% # within 0.1%',
+  },
+  'attr.unknown': {
+    title: 'The value has no property of that name',
+    why: 'Properties are read with a dot: `$g.volume`, `$g.bbox.x`. The set is\n'
+      + 'fixed per kind of value, and a misspelt or unavailable name is an\n'
+      + 'error rather than a silent zero.',
+    fix: 'A solid has volume area solids faces edges verts bbox valid; a 2D\n'
+      + 'shape has area faces wires bbox; a bbox has x y z min max center.\n'
+      + '  assert $g.solids == 1\n'
+      + '  assert $g.bbox.z <= 25',
+  },
+  'print': {
+    title: 'Output of a print statement',
+    why: 'Not a problem: `print "vol" $g.volume` in the model wrote this line.\n'
+      + 'It travels as an info diagnostic so it lands in the same report as\n'
+      + 'everything else (`--json` included) without touching stdout.',
+    fix: 'Nothing to fix. Remove the print when the value is no longer needed.',
   },
   'thread.short': {
     title: 'A thread shorter than one pitch',

@@ -19,7 +19,16 @@ export type Value =
   | Value[]
   | [number, number]
   | WpState
-  | UserFunc;
+  | UserFunc
+  | BBoxValue;
+
+/** The value of `$g.bbox`: axis-aligned extent, with its own properties
+ *  (`.x .y .z` sizes, `.min .max .center` as 3-element lists). */
+export interface BBoxValue {
+  __kind: 'bbox';
+  min: [number, number, number];
+  max: [number, number, number];
+}
 
 export interface UserFunc {
   __kind: 'func';
@@ -126,6 +135,7 @@ export const BUILTIN_ARITY: Record<string, [number, number]> = {
   min: [1, Infinity],
   max: [1, Infinity],
   range: [1, 3],
+  clear: [2, 2],
 };
 
 /** One-line gloss of each built-in, for messages that name one. */
@@ -138,6 +148,7 @@ export const BUILTIN_GLOSS: Record<string, string> = {
   radians: 'degrees → radians', degrees: 'radians → degrees',
   rad: 'degrees → radians', deg: 'radians → degrees',
   len: 'length of a list', range: 'list of integers',
+  clear: 'true when two shapes do not intersect',
 };
 
 // ---------------------------------------------------------------------------
@@ -185,6 +196,7 @@ export function asString(v: Value): string {
 /** Short type name of a value, for error messages. */
 export function describeValue(v: Value): string {
   if (isWpState(v)) return 'a shape';
+  if (isBBox(v)) return 'a bbox';
   if (Array.isArray(v)) return 'a list';
   if (v === null || v === undefined) return 'nothing';
   return typeof v;
@@ -201,6 +213,12 @@ export function isWpState(v: Value): v is WpState {
   if (v === null || typeof v !== 'object') return false;
   const obj = v as unknown as Record<string, unknown>;
   return 'oc' in obj && 'plane' in obj;
+}
+
+export function isBBox(v: Value): v is BBoxValue {
+  if (v === null || typeof v !== 'object') return false;
+  const obj = v as unknown as Record<string, unknown>;
+  return '__kind' in obj && obj.__kind === 'bbox';
 }
 
 export function isUserFunc(v: Value): v is UserFunc {
