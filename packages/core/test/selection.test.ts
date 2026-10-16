@@ -147,11 +147,19 @@ describe('selection', () => {
       }
     });
 
-    it('parses selector aliases as identifiers', () => {
+    it('resolves a name alias only as a selection argument', () => {
+      const { ops } = parsePipeline('box 10 10 10 | faces top');
+      expect(ops[0]).toMatchObject({ type: 'FacesSelect', args: [{ type: 'SelectorLit', value: '>Z' }] });
+      const list = parsePipeline('box 10 10 10 | edges [top, bottom]').ops[0] as { args: unknown[] };
+      expect(list.args[0]).toMatchObject({ type: 'ListLit', elements: [{ value: '>Z' }, { value: '<Z' }] });
+      // Elsewhere `top` is an identifier: a variable can be called top
+      // (devel/TODO.md 2026-10-07: `top = 20` then `rect 28 top` broke).
       const stmt = parseFirst('$x = top');
       if (stmt.type === 'Assignment') {
-        expect(stmt.value).toMatchObject({ type: 'SelectorLit', value: '>Z' });
+        expect(stmt.value).toMatchObject({ type: 'VarRef', name: 'top' });
       }
+      const rect = parsePipeline('rect 28 top').source as { args: unknown[] };
+      expect(rect.args[1]).toMatchObject({ type: 'VarRef', name: 'top' });
     });
 
     it('parses all axis variants: X, Y, Z', () => {
@@ -499,12 +507,9 @@ describe('selection', () => {
       expect(evaluateExpressions(parse('$x = +Z'))).toBe('+Z');
     });
 
-    it('evaluates name alias top to ">Z" string', () => {
-      expect(evaluateExpressions(parse('$x = top'))).toBe('>Z');
-    });
-
-    it('evaluates name alias bottom to "<Z" string', () => {
-      expect(evaluateExpressions(parse('$x = bottom'))).toBe('<Z');
+    it('a name alias is a variable outside a selection argument', () => {
+      expect(evaluateExpressions(parse('top = 20\n$x = top + 1'))).toBe(21);
+      expect(() => evaluateExpressions(parse('$x = top'))).toThrow(/Undefined variable: top/);
     });
 
     it('a selector value is its source form for every symbol', () => {
@@ -516,11 +521,16 @@ describe('selection', () => {
       expect(evaluateExpressions(parse('$x = +Y'))).toBe('+Y');
     });
 
-    it('maps all selector name aliases', () => {
-      expect(evaluateExpressions(parse('$x = right'))).toBe('>X');
-      expect(evaluateExpressions(parse('$x = left'))).toBe('<X');
-      expect(evaluateExpressions(parse('$x = front'))).toBe('<Y');
-      expect(evaluateExpressions(parse('$x = back'))).toBe('>Y');
+    it('maps all selector name aliases as selection arguments', () => {
+      const expected: Record<string, string> = {
+        top: '>Z', bottom: '<Z', right: '>X', left: '<X', front: '<Y', back: '>Y',
+      };
+      for (const [alias, sym] of Object.entries(expected)) {
+        for (const op of ['faces', 'edges', 'verts']) {
+          const { ops } = parsePipeline(`box 10 10 10 | ${op} ${alias}`);
+          expect((ops[0] as { args: unknown[] }).args[0], `${op} ${alias}`).toMatchObject({ type: 'SelectorLit', value: sym });
+        }
+      }
     });
   });
 

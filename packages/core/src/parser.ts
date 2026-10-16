@@ -80,6 +80,11 @@ export class Parser {
   private tokens: Token[];
   private pos = 0;
   private inGreedyContext = false;
+  /** True while reading the arguments of faces / edges / verts: the only
+   *  place where `top`, `bottom`, ... mean a selector. Anywhere else they are
+   *  ordinary identifiers (`top = 20`, `rect 28 top`), see
+   *  devel/selector202610.md section 3.4. */
+  private inSelectorArgs = false;
 
   constructor(tokens: Token[]) {
     this.tokens = tokens;
@@ -915,9 +920,15 @@ export class Parser {
     }
 
     // workplane: accept bare-word plane name (e.g. workplane XZ)
-    const { args, namedArgs } = keyword === 'workplane'
-      ? this.parseWorkplaneArgs()
-      : this.parseGreedyArgs();
+    const prevSelectorArgs = this.inSelectorArgs;
+    this.inSelectorArgs = SELECTION_OPS.has(keyword);
+    let parsed: { args: Expression[]; namedArgs: NamedArg[] };
+    try {
+      parsed = keyword === 'workplane' ? this.parseWorkplaneArgs() : this.parseGreedyArgs();
+    } finally {
+      this.inSelectorArgs = prevSelectorArgs;
+    }
+    const { args, namedArgs } = parsed;
 
     // Selection ops can have "as $tag"
     if (SELECTION_OPS.has(keyword)) {
@@ -1391,8 +1402,10 @@ export class Parser {
       return this.parseFuncCallExpr();
     }
 
-    // Selector name alias: top, bottom, right, left, front, back
-    if (token.type === TokenType.Identifier && token.value in SELECTOR_ALIASES) {
+    // Selector name alias: top, bottom, right, left, front, back -- only as
+    // an argument of faces / edges / verts. `$s = top` is not a selector
+    // binding (use `$s = >Z`); elsewhere `top` is a variable.
+    if (this.inSelectorArgs && token.type === TokenType.Identifier && token.value in SELECTOR_ALIASES) {
       this.advance();
       return { type: 'SelectorLit', value: SELECTOR_ALIASES[token.value], loc: this.loc(token) };
     }
