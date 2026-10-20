@@ -7,6 +7,9 @@
     /** A download is in flight: the trigger spins and refuses further clicks. */
     busy?: boolean;
     label?: string;
+    /** The trigger's tooltip and accessible name, when `label` is shortened
+     *  to fit a toolbar (say "DL"). Defaults to `label`. */
+    title?: string;
     /** Tooltip for an item the caller marked unavailable, so the reason for a
      *  greyed-out row is visible rather than guessed at. */
     unavailableHint?: string;
@@ -17,6 +20,7 @@
     items,
     busy = false,
     label = 'Download',
+    title = undefined,
     unavailableHint = '',
     ondownload,
   }: Props = $props();
@@ -51,7 +55,8 @@
     disabled={busy || items.length === 0}
     aria-haspopup="menu"
     aria-expanded={open}
-    title={label}
+    title={title ?? label}
+    aria-label={title ?? label}
   >
     {#if busy}
       <svg class="spin" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">

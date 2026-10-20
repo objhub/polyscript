@@ -302,11 +302,10 @@
 
 	function loadFromUrl(glbUrl: string) {
 		new GLTFLoader().load(glbUrl, (gltf) => {
-			gltf.scene.traverse((child) => {
-				if ((child as THREE.Mesh).isMesh) {
-					loadMesh(child as THREE.Mesh);
-				}
-			});
+			// The whole scene, not just its first mesh: a preview GLB carries
+			// the CAD edges as a LINES primitive beside the faces, which the
+			// loader makes a Group of a Mesh and a LineSegments.
+			loadMesh(gltf.scene);
 		});
 	}
 

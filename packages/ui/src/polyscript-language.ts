@@ -468,6 +468,37 @@ function createTooltipDOM(sig: FuncSignature): HTMLElement {
   return el;
 }
 
+/** Where the tooltip's footer links to, and what it says. Unset: no footer. */
+export interface PolyscriptDocsLink {
+  url: string;
+  label: string;
+}
+
+function appendDocsLink(el: HTMLElement, docs: PolyscriptDocsLink): void {
+  const a = document.createElement('a');
+  a.className = 'ps-tooltip-docs';
+  a.href = docs.url;
+  a.target = '_blank';
+  a.rel = 'noopener';
+  a.textContent = `${docs.label} ↗`;
+  el.appendChild(a);
+}
+
+function hoverTooltipWith(docs?: PolyscriptDocsLink) {
+  return (view: EditorView, pos: number, side: number): Tooltip | null => {
+    const tip = polyscriptHoverTooltip(view, pos, side);
+    if (!tip || !docs) return tip;
+    return {
+      ...tip,
+      create(v) {
+        const made = tip.create(v);
+        appendDocsLink(made.dom, docs);
+        return made;
+      },
+    };
+  };
+}
+
 export function polyscriptHoverTooltip(view: EditorView, pos: number, side: number): Tooltip | null {
   const { from, to, text } = view.state.doc.lineAt(pos);
   // Find the word at the hover position
@@ -772,6 +803,8 @@ const polyscriptTooltipTheme = EditorView.theme({
   '.ps-tooltip-pname': { fontFamily: "'JetBrains Mono', monospace", fontWeight: '600', color: '#2b6cb0' },
   '.ps-tooltip-opt': { color: '#a0aec0', fontSize: '10px', marginLeft: '1px' },
   '.ps-tooltip-ex': { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', color: '#718096', borderTop: '1px solid #e2e8f0', paddingTop: '4px' },
+  '.ps-tooltip-docs': { display: 'block', marginTop: '4px', fontSize: '11px', color: '#3182ce', textDecoration: 'none' },
+  '.ps-tooltip-docs:hover': { textDecoration: 'underline' },
 });
 
 // --- Bundled extension ---
@@ -782,15 +815,18 @@ const polyscriptTooltipTheme = EditorView.theme({
  * - Autocompletion (primitives, pipe ops, keywords, selectors, etc.)
  * - Hover tooltips with function signatures
  * - Tooltip styling
+ *
+ * `docs` adds a link at the foot of each hover tooltip. The tooltip stays
+ * open while the pointer is over it, so the link can be clicked.
  */
-export function polyscriptLanguageSupport(): Extension {
+export function polyscriptLanguageSupport(options: { docs?: PolyscriptDocsLink } = {}): Extension {
   return [
     autocompletion({
       override: [polyscriptCompletion],
       activateOnTyping: true,
       selectOnOpen: false,
     }),
-    polyscriptHoverExtension,
+    options.docs ? hoverTooltip(hoverTooltipWith(options.docs), { hoverTime: 300 }) : polyscriptHoverExtension,
     polyscriptTooltipTheme,
   ];
 }

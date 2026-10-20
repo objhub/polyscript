@@ -11,15 +11,22 @@
     /** Standing note rather than the result of an action (a stale artifact,
      *  say). Greyed, and never shown while `text` has something to say. */
     muted?: string;
+    /** A link after the text, for where to go next (the language reference
+     *  under a build error, say). Shown only alongside `text`. Opens in a new
+     *  tab: the bar sits under an editor with unsaved work. */
+    link?: { href: string; label: string } | null;
   }
 
-  let { text = '', error = false, busy = false, muted = '' }: Props = $props();
+  let { text = '', error = false, busy = false, muted = '', link = null }: Props = $props();
 </script>
 
 <div class="status-bar" class:error class:busy>
   {#if busy}<span class="spinner">⏳</span>{/if}
   {#if text}
     <span class="status-text">{text}</span>
+    {#if link}
+      <a class="status-link" href={link.href} target="_blank" rel="noopener">{link.label} ↗</a>
+    {/if}
   {:else if muted}
     <span class="status-text muted">{muted}</span>
   {/if}
@@ -57,6 +64,11 @@
   .status-text {
     white-space: pre-wrap;
     word-break: break-word;
+  }
+  .status-link {
+    margin-left: 0.75em;
+    color: #3182ce;
+    white-space: nowrap;
   }
   .status-text.muted {
     color: #a0aec0;

@@ -13,3 +13,4 @@ export {
   polyscriptHoverExtension,
   polyscriptHoverTooltip,
 } from './polyscript-language.js';
+export type { PolyscriptDocsLink } from './polyscript-language.js';
