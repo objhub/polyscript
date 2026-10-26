@@ -34,6 +34,9 @@ beforeAll(() => {
   writeFileSync(f('syntax.poly'), 'box 10 |\n');
   writeFileSync(f('two-parts.poly'), 'box 10 10 10\nbox 10 10 10 | translate 50 0 0\n');
   writeFileSync(f('lib-only.poly'), 'def cube(s) = box s s s\n');
+  // A pocket moved across the top: same volume, area, bbox and counts.
+  writeFileSync(f('pocket-l.poly'), 'box 60 40 10 | faces >Z | moveto -15 0 | rect 10 10 | cut 4\n');
+  writeFileSync(f('pocket-r.poly'), 'box 60 40 10 | faces >Z | moveto 15 0 | rect 10 10 | cut 4\n');
 }, 30000);
 
 afterAll(() => rmSync(dir, { recursive: true, force: true }));
@@ -172,6 +175,12 @@ describe('diff', () => {
     const vol = d.changes.find((c: any) => c.field === 'volume');
     expect(vol.to).toBeGreaterThan(vol.from);
     expect(vol.delta).toMatch(/^\+/);
+  }, 120000);
+
+  it('sees a feature that moved without changing size', () => {
+    const d = JSON.parse(run(['diff', f('pocket-l.poly'), f('pocket-r.poly'), '--json']).stdout);
+    expect(d.same).toBe(false);
+    expect(d.changes.map((c: any) => c.field)).toEqual(['center.x']);
   }, 120000);
 });
 

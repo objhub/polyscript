@@ -27,8 +27,8 @@ export {
 } from './geometry.js';
 
 // Shape analysis
-export type { ShapeInfo } from './analysis.js';
-export { shapeInfo } from './analysis.js';
+export type { ShapeInfo, MassFacts } from './analysis.js';
+export { shapeInfo, massFacts } from './analysis.js';
 
 // Selector engine
 export { selectItems } from './selector.js';

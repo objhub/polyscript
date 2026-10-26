@@ -45,3 +45,18 @@ export function shapeInfo(oc: OC, shape: Shape): ShapeInfo {
     },
   };
 }
+
+/** Centre of mass and the inertia matrix about it (row-major 3x3, symmetric).
+ *  They see where material is, which the figures in ShapeInfo do not: a pocket
+ *  moved across a face keeps volume, area, bbox and every count. Separate from
+ *  shapeInfo because only the fingerprint and `poly diff` need them, and live
+ *  calls shapeInfo after every build. */
+export interface MassFacts {
+  center: [number, number, number];
+  inertia: number[];
+}
+
+export function massFacts(oc: OC, shape: Shape): MassFacts {
+  const c = oc.getCenterOfMass(shape);
+  return { center: [c.x, c.y, c.z], inertia: oc.getInertia(shape) };
+}

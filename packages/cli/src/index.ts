@@ -124,6 +124,7 @@ interface ShapeInfoLike {
   solids: number;
   is_valid: boolean;
   topology: { faces: number; edges: number; vertices: number };
+  mass?: { center: [number, number, number]; inertia: number[] };
 }
 
 function readInput(file: string): string {
@@ -265,7 +266,7 @@ async function loadModel(file: string, opts: LoadOptions): Promise<LoadedModel> 
     fail('validate', validationDiagnostics(errors), EXIT_SEMANTIC);
   }
 
-  const { initOC, shapeInfo } = await import('@polyscript/core/ocp-kernel');
+  const { initOC, shapeInfo, massFacts } = await import('@polyscript/core/ocp-kernel');
   let oc: any;
   try {
     oc = await initOC();
@@ -305,6 +306,8 @@ async function loadModel(file: string, opts: LoadOptions): Promise<LoadedModel> 
   let info: ShapeInfoLike | null = null;
   if (shape) {
     try { info = shapeInfo(oc, shape); } catch { /* best-effort */ }
+    // A face or wire has no mass; the fingerprint then goes without it.
+    if (info) try { info.mass = massFacts(oc, shape); } catch { /* best-effort */ }
   }
 
   return {
@@ -715,7 +718,7 @@ program
 // diff subcommand — did the edit change the geometry?
 program
   .command('diff <a> <b>')
-  .description('Compare the B-Rep facts of two .poly files (fingerprint, volume, bbox, topology)')
+  .description('Compare the B-Rep facts of two .poly files (fingerprint, volume, bbox, topology, centre of mass)')
   .option(
     '-D, --define <value>',
     'Override parameter in both files (repeatable)',
@@ -781,6 +784,21 @@ function compareShapes(a: ShapeInfoLike | null, b: ShapeInfoLike | null): ShapeC
   count('vertices', a.topology.vertices, b.topology.vertices);
   if (a.is_valid !== b.is_valid) {
     out.push({ field: 'is_valid', from: String(a.is_valid), to: String(b.is_valid) });
+  }
+  // Where the material is. Often the only fields that move: a pocket slid
+  // across a face keeps everything above.
+  if (a.mass && b.mass) {
+    const before = out.length;
+    for (const [i, axis] of ['x', 'y', 'z'].entries()) {
+      const [x, y] = [a.mass.center[i], b.mass.center[i]];
+      if (Math.abs(y - x) > 1e-6 * Math.max(1, Math.abs(x), Math.abs(y))) {
+        out.push({ field: `center.${axis}`, from: Number(x.toFixed(4)), to: Number(y.toFixed(4)),
+          delta: `${y - x > 0 ? '+' : ''}${Number((y - x).toFixed(4))}` });
+      }
+    }
+    if (out.length === before && a.mass.inertia.some((v, i) => Number(v.toPrecision(7)) !== Number(b.mass!.inertia[i].toPrecision(7)))) {
+      out.push({ field: 'inertia', from: 'a', to: 'b', delta: 'same centre of mass, material moved' });
+    }
   }
   return out;
 }

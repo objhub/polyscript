@@ -44,6 +44,19 @@ describe('fingerprint', () => {
     expect(fingerprint(facts({ volume: 15552 + eps }))).toBe(base);
   });
 
+  it('sees material that moved without changing any other figure', () => {
+    // box 60 40 10 with a 10 x 10 x 4 pocket at x = -15, then at x = +15:
+    // volume, area, bbox and counts are equal; only the centre moved.
+    const at = (x: number) => facts({ mass: { center: [x, 0, 4.8], inertia: [1e5, 0, 0, 0, 2e5, 0, 0, 0, 2.5e5] } });
+    expect(fingerprint(at(0.2542))).not.toBe(fingerprint(at(-0.2542)));
+    expect(fingerprint(at(0.2542))).not.toBe(fingerprint(facts()));
+  });
+
+  it('reads a centre or a product of inertia that is zero up to noise as zero', () => {
+    const m = (c: number, p: number) => facts({ mass: { center: [c, -c, 12.5], inertia: [1e5, p, 0, p, 2e5, 0, 0, 0, 2.5e5] } });
+    expect(fingerprint(m(1e-12, 3e-9))).toBe(fingerprint(m(-3e-13, -2e-9)));
+  });
+
   it('does not confuse a zero with a negative zero', () => {
     expect(fingerprint(facts({ bbox: { min: [-0, 0, 0], max: [80, 60, 25] } })))
       .toBe(fingerprint(facts()));
