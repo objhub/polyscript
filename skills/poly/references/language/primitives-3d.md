@@ -43,7 +43,7 @@ The groove is a V with a flat crest and a sharp root.
 |---|---|---|
 | `land:` | pitch/8 | width of the flat crest along the axis (the ISO crest truncation); 0 gives a sharp crest |
 | `depth:` | (pitch - land) / 2 x sqrt(3) | groove depth from crest to root; the default gives 60-degree flanks |
-| `chamfer:` | none | 45-degree chamfer of the ends: `true` cuts down to the root (the ISO 4753 lead-in a nut needs), a number sets the size, `(bottom, top)` sets each end |
+| `chamfer:` | none | 45-degree chamfer. One value chamfers the **top end only** (the tip; the bottom is where a bolt head joins): `true` cuts down to the root (the ISO 4753 lead-in a nut needs), a number sets the size. `(bottom, top)` sets each end: `chamfer:(true, true)` for both |
 
 It is built directly as a B-Rep with one face per turn, several times faster than sweeping a groove along a helix and subtracting it from a cylinder.
 An `h` shorter than the pitch gives less than one turn and warns `thread.short`, since swapping `pitch` and `h` is the usual cause.

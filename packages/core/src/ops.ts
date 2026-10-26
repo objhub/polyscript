@@ -82,7 +82,7 @@ export const OP_SPECS: OpSpec[] = [
     named: [...PRIM3D,
       { key: 'land', type: 'number', desc: 'crest flat (default pitch / 8)' },
       { key: 'depth', type: 'number', desc: 'thread depth (default 60-degree flanks to a sharp root)' },
-      { key: 'chamfer', type: 'number | bool | (bottom, top)', desc: '45-degree chamfer of the ends; true = down to the root' }],
+      { key: 'chamfer', type: 'number | bool | (bottom, top)', desc: '45-degree chamfer of the top end (one value) or (bottom, top); true = down to the root' }],
     example: 'thread 8 1.25 20 chamfer:true' },
 
   // --- 2D primitives --------------------------------------------------------
