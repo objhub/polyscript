@@ -56,10 +56,10 @@ box 10 10 10 | faces >Z | shell 2
 
 ```poly
 # ❌ 上面だけ開けるつもりで、上を向く面すべて(段差の棚も)を開けている
-$stepped | faces +Z | shell 2
+stepped | faces +Z | shell 2
 
 # ✓ 位置で選ぶ: 最も高い面1枚
-$stepped | faces >Z | shell 2
+stepped | faces >Z | shell 2
 ```
 
 セレクタは**辺・面そのものの向き**で読む(面の法線ではない):
@@ -97,12 +97,12 @@ front  = <Y      back   = >Y     ← front が「マイナス側」
 
 ```poly
 # ❌ 蓋が本体の中にめり込む
-$body = box 80 60 20
-$lid  = rect 80 60 | extrude 3 | translate 0 0 10
+body = box 80 60 20
+lid  = rect 80 60 | extrude 3 | translate 0 0 10
 
 # ✓ 基準を揃えてから積む
-$body = box 80 60 20 | floor          # z=0..20 になる
-$lid  = rect 80 60 | extrude 3 | translate 0 0 20
+body = box 80 60 20 | floor          # z=0..20 になる
+lid  = rect 80 60 | extrude 3 | translate 0 0 20
 ```
 
 `box`/`cylinder`/`sphere`/`cone`/`torus`/`wedge` は原点中心(z=-h/2..+h/2)。
@@ -117,11 +117,11 @@ $lid  = rect 80 60 | extrude 3 | translate 0 0 20
 
 ```poly
 # ❌ shell の床厚は wall_t(2mm)。床が3mmのつもりでボスを z=3 に置くと1mm浮く
-$shell = box 80 60 25 | floor | faces >Z | shell 2
-$boss  = cylinder 4 15 | floor | translate 0 0 3
+body = box 80 60 25 | floor | faces >Z | shell 2
+boss  = cylinder 4 15 | floor | translate 0 0 3
 
 # ✓ shell の床厚は wall_t と同じ
-$boss  = cylinder 4 15 | floor | translate 0 0 2
+boss  = cylinder 4 15 | floor | translate 0 0 2
 ```
 
 床だけ厚くしたいなら、`shell` の後に床板を別途 `union` する。

@@ -24,13 +24,13 @@ In other words, the bottom face of `box 10 10 10` sits at z=-5, while `rect 10 1
 
 ```
 # WRONG: want to stack a lid (extrude) on a body (box), but bottoms mismatch
-$body = box 80 60 100             # z = -50..+50
-$lid  = rect 80 60 | extrude 20  # z = 0..20
-# $lid floats near the middle of the body
+body = box 80 60 100             # z = -50..+50
+lid  = rect 80 60 | extrude 20  # z = 0..20
+# lid floats near the middle of the body
 
 # RIGHT: use floor to align the body, then stack
-$body = box 80 60 100 | floor               # z = 0..100
-$lid  = rect 80 60 | extrude 20            # z = 0..20
-$body | union ($lid | translate 0 0 100)    # lid on top
+body = box 80 60 100 | floor               # z = 0..100
+lid  = rect 80 60 | extrude 20            # z = 0..20
+body | union (lid | translate 0 0 100)    # lid on top
 ```
 

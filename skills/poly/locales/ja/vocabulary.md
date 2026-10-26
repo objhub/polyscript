@@ -14,12 +14,12 @@
 | 面取り・C面・角を落とす | `chamfer c` | `edges >Z \| chamfer 1` |
 | 肉抜き・中空化・器にする | `faces` + `shell t` | `faces >Z \| shell 2` |
 | くり抜く・削る・引く | `diff` | `\| diff (cylinder 5 30)` |
-| 足す・くっつける | `union` | `\| union $boss` |
+| 足す・くっつける | `union` | `\| union boss` |
 | 重なりだけ残す | `inter` | `\| inter (sphere 20)` |
 | 穴・穴あけ | `hole r` | `faces >Z \| hole 3` |
 | 皿穴・座掘り | 段付き `hole` を2回 | `hole 3.4` の後に浅い `hole 6` |
 | 貫通穴 | `hole r`(深さ省略) | 省略すると貫通する |
-| 溝・スリット | 細い `box` を `diff` | `\| diff ($slot)` |
+| 溝・スリット | 細い `box` を `diff` | `\| diff (slot)` |
 | オフセット・逃げ | `offset d` | `\| offset -1`(内側) |
 | 板を厚くする | `extrude` の値 | — |
 

@@ -9,9 +9,9 @@ Adding `@param` to a variable turns it into a parameter that can be controlled v
 
 ```
 @param 10..200 step:5 desc:"Box width"
-$width = 80
+width = 80
 
-box $width 60 10
+box width 60 10
 ```
 
 This alone displays a slider in the GUI ranging from 10 to 200 in increments of 5.
@@ -20,7 +20,7 @@ This alone displays a slider in the GUI ranging from 10 to 200 in increments of 
 
 ```
 @param options...
-$variable_name = default_value
+variable_name = default_value
 ```
 
 ### Range shorthand
@@ -61,27 +61,27 @@ Use `choices` to display a dropdown menu:
 
 ```
 @param choices:["M3", "M4", "M5", "M6"] desc:"Bolt size"
-$bolt = "M4"
+bolt = "M4"
 ```
 
 ### Practical example
 
 ```
 @param 40..200 step:5 group:"Dimensions" desc:"Case width"
-$case_w = 100
+case_w = 100
 
 @param 30..150 step:5 group:"Dimensions" desc:"Case depth"
-$case_d = 60
+case_d = 60
 
 @param 1..5 step:0.5 group:"Wall" desc:"Wall thickness"
-$wall = 2
+wall = 2
 
 @param type:"bool" group:"Features" desc:"Add ventilation holes"
-$vents = true
+vents = true
 
-box $case_w $case_d 40
+box case_w case_d 40
  | color "steel"
- | faces >Z | shell $wall
+ | faces >Z | shell wall
 ```
 
 ### CLI Override

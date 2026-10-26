@@ -42,7 +42,7 @@
 | 関数 | 引数 | 例 |
 |---|---|---|
 | `line` | start end | `line (0,0,0) (10,0,10)` |
-| `arc` | start through end / start end center:(cx,cy) / start end radius:radius | `arc (0,0,0) (5,5,0) (10,0,0)`, `arc (0,0) (0,$r) center:(0,0)`, `arc (0,0) (5,3) radius:2` |
+| `arc` | start through end / start end center:(cx,cy) / start end radius:radius | `arc (0,0,0) (5,5,0) (10,0,0)`, `arc (0,0) (0,r) center:(0,0)`, `arc (0,0) (5,3) radius:2` |
 | `bezier` | points | `bezier [(0,0,0), (5,10,0), (10,0,0)]` |
 | `helix` | pitch h r | `helix 5 30 10` |
 | `spline` | points | `spline [(0,0,0), (10,5,5), (20,0,10)]` |
@@ -88,19 +88,19 @@ workplane XZ | wire [(0,0),(10,0),(10,10),(0,10),(0,0)] | sweep (circle 2)
 
 パイプ操作: `box 10 10 10 | diff (sphere 7)`
 ソースコマンド: `union [box 10 10 10, sphere 7]` / `diff [...]` / `inter [...]`
-形状演算子: `a + b`（union）/ `a - b`（diff）/ `a * b`（inter）。**変数か括弧の間だけ**: `(box 10 10 10) - (cylinder 3 20)` は可、`box 10 10 10 - cylinder 3 20` はパースエラー（引数の算術と衝突）。`base - holes | fillet 2` は `(base - holes) | fillet 2`。`*` を `+`/`-` と混ぜるときは括弧を書く。長い式は演算子の前後で改行できる(行頭の `-` は後ろに空白: `- $b`)
+形状演算子: `a + b`（union）/ `a - b`（diff）/ `a * b`（inter）。**変数か括弧の間だけ**: `(box 10 10 10) - (cylinder 3 20)` は可、`box 10 10 10 - cylinder 3 20` はパースエラー（引数の算術と衝突）。`base - holes | fillet 2` は `(base - holes) | fillet 2`。`*` を `+`/`-` と混ぜるときは括弧を書く。長い式は演算子の前後で改行できる(行頭の `-` は後ろに空白: `- b`)
 
 ### 配置
 
 | 操作 | 説明 | 例 |
 |---|---|---|
-| `place shape` | 2D形状を配置 | `place $profile`, `place (circle 3)` |
+| `place shape` | 2D形状を配置 | `place profile`, `place (circle 3)` |
 
 変数に格納した2D形状を面の上に配置してから `cut` や `extrude` できる:
 
 ```
-$s = sketch [(5,0), arc (5,0) (0,-5) (-5,0), (0,7), (5,0)]
-box 10 10 10 | faces >Z | place $s | cut
+s = sketch [(5,0), arc (5,0) (0,-5) (-5,0), (0,7), (5,0)]
+box 10 10 10 | faces >Z | place s | cut
 ```
 
 ### 2D → 3D
@@ -195,8 +195,6 @@ Face選択の後では `polar` / `grid` を直接書ける（`points` を省略�
 | `front` | `<Y` |
 | `back` | `>Y` |
 
-エイリアスが効くのは `faces` / `edges` / `verts` の引数位置だけ。他では普通の変数名(`top = 20` は可)。変数に束縛するなら記号で `$s = >Z`。
-
 ### 複合セレクタ
 
 ```
@@ -248,14 +246,14 @@ box 10 10 10 | faces top | grid 2 3 20 | circle 3 | cut  # 点を格子配置
 ### 変数
 
 ```
-$w = 80
-box $w $w/2 10
+w = 80
+box w w/2 10
 ```
 
 ### 関数定義
 
 ```
-def name($args) = pipeline
+def name(args) = pipeline
 lift(box 10 10 10 | fillet 1, 5)   # 括弧の呼び出し: 引数にコマンドもパイプも書ける。区切りは ,
 cylinder r(3) 10                   # コマンドの引数の中の呼び出しは名前の直後に ( 。r (3) は arg.function-value
 ```
@@ -269,13 +267,13 @@ import "gear"
 ### 条件式
 
 ```
-if $x > 0 then $x else -$x
+if x > 0 then x else -x
 ```
 
 ### リスト内包
 
 ```
-[$i * 10 for $i in range(6)]
+[i * 10 for i in range(6)]
 ```
 
 ### 組み込み関数
@@ -292,33 +290,11 @@ if $x > 0 then $x else -$x
 | `radians(d)` / `rad(d)`、`degrees(r)` / `deg(r)` | 度とラジアンの変換 |
 | `len(list)` | リストの長さ |
 | `range(n)` / `range(a, b)` / `range(a, b, step)` | 整数のリスト（`b` は含まない） |
-| `clear(a, b)` | 2つのソリッドが重ならなければ `true`（接するだけなら `true`） |
 | `pi` | 円周率（定数） |
 
 ### 演算子（優先順位 高→低）
 
-`**` → `*` `/` `//` `%` → `+` `-` → 比較（`==` `!=` `<` `>` `<=` `>=` `~`） → `and` → `or` → `|`
-
-`a ~ b` は近似比較。大きい方の 1% 以内なら `true`（`assert` の `tol:` で変えられる）。
-
-### 計測と検証（`.プロパティ` / `assert` / `print`）
-
-```
-$g = box 80 60 25 | faces >Z | shell 2
-$g.volume  $g.area  $g.solids  $g.faces  $g.edges  $g.verts  $g.valid   # ソリッド
-$g.bbox.x  $g.bbox.y  $g.bbox.z  $g.bbox.min  $g.bbox.max  $g.bbox.center  # 寸法と角
-$s.area  $s.faces  $s.wires  $s.bbox                                      # 2D 形状
-
-assert $g.solids == 1              # 意図を書く。破れたら error assert.failed、build は書き出さない
-assert $g.bbox.x ~ 80              # 近似比較（既定 1%）
-assert $g.volume ~ 15552 tol:5     # 絶対許容差 5
-assert $g.volume ~ 15552 tol:0.1%  # 相対許容差
-assert clear($lid, $body)          # 干渉なし
-print "vol" $g.volume $g.bbox      # 値を報告（info print）。verify / --json / live に出る
-```
-
-プロパティは変数や括弧の直後に密着させる（`$g.volume`、`($g | faces >Z).solids`）。
-コマンドの引数にもそのまま書ける（`box $g.bbox.x 10 10`）。
+`**` → `*` `/` `//` `%` → `+` `-` → 比較 → `and` → `or` → `|`
 
 ---
 

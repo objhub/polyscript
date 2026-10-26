@@ -42,28 +42,28 @@ boss_h  = 8
 pilot_r = 1.25
 inset   = 10
 
-$ox = plate_w / 2 - inset
-$oy = plate_d / 2 - inset
+ox = plate_w / 2 - inset
+oy = plate_d / 2 - inset
 
-$plate = box plate_w plate_d plate_t | floor
-$boss  = cylinder boss_r boss_h | floor | translate 0 0 plate_t
-$pilot = cylinder pilot_r (plate_t + boss_h) | floor
+plate = box plate_w plate_d plate_t | floor
+boss  = cylinder boss_r boss_h | floor | translate 0 0 plate_t
+pilot = cylinder pilot_r (plate_t + boss_h) | floor
 
-$bosses = union [
-  $boss | translate $ox $oy 0,
-  $boss | translate $ox ($oy * -1) 0,
-  $boss | translate ($ox * -1) $oy 0,
-  $boss | translate ($ox * -1) ($oy * -1) 0
+bosses = union [
+  boss | translate ox oy 0,
+  boss | translate ox (oy * -1) 0,
+  boss | translate (ox * -1) oy 0,
+  boss | translate (ox * -1) (oy * -1) 0
 ]
 
-$pilots = union [
-  $pilot | translate $ox $oy 0,
-  $pilot | translate $ox ($oy * -1) 0,
-  $pilot | translate ($ox * -1) $oy 0,
-  $pilot | translate ($ox * -1) ($oy * -1) 0
+pilots = union [
+  pilot | translate ox oy 0,
+  pilot | translate ox (oy * -1) 0,
+  pilot | translate (ox * -1) oy 0,
+  pilot | translate (ox * -1) (oy * -1) 0
 ]
 
-$plate | union $bosses | diff $pilots
+plate | union bosses | diff pilots
 ```
 
 穴は「ボスと同じ位置に円柱を並べて `diff`」で開けるのが確実。
@@ -92,34 +92,34 @@ pilot_r = 1.25      # M3タップ下穴 φ2.5
 pilot_h = 12
 overlap = 1         # 内壁への食い込み。接するだけでは別ソリッドになる
 
-$bx = case_w / 2 - wall_t - boss_r + overlap
-$by = case_d / 2 - wall_t - boss_r + overlap
+bx = case_w / 2 - wall_t - boss_r + overlap
+by = case_d / 2 - wall_t - boss_r + overlap
 
-$shell = box case_w case_d case_h
+body = box case_w case_d case_h
   | floor
   | edges =Z | fillet corner_r
   | faces >Z | shell wall_t
 
 # shell の床は wall_t 厚なので、ボスは z = wall_t から立てる
-$boss  = cylinder boss_r boss_h | floor | translate 0 0 wall_t
-$pilot = cylinder pilot_r pilot_h | floor
+boss  = cylinder boss_r boss_h | floor | translate 0 0 wall_t
+pilot = cylinder pilot_r pilot_h | floor
   | translate 0 0 (wall_t + boss_h - pilot_h)
 
-$bosses = union [
-  $boss | translate $bx $by 0,
-  $boss | translate $bx ($by * -1) 0,
-  $boss | translate ($bx * -1) $by 0,
-  $boss | translate ($bx * -1) ($by * -1) 0
+bosses = union [
+  boss | translate bx by 0,
+  boss | translate bx (by * -1) 0,
+  boss | translate (bx * -1) by 0,
+  boss | translate (bx * -1) (by * -1) 0
 ]
 
-$pilots = union [
-  $pilot | translate $bx $by 0,
-  $pilot | translate $bx ($by * -1) 0,
-  $pilot | translate ($bx * -1) $by 0,
-  $pilot | translate ($bx * -1) ($by * -1) 0
+pilots = union [
+  pilot | translate bx by 0,
+  pilot | translate bx (by * -1) 0,
+  pilot | translate (bx * -1) by 0,
+  pilot | translate (bx * -1) (by * -1) 0
 ]
 
-$shell | union $bosses | diff $pilots
+body | union bosses | diff pilots
 ```
 
 検証: bbox 80×60×25、`solids` 1、下穴の体積減 235.6 = 4×π×1.25²×12。
@@ -142,21 +142,21 @@ base_r = 35
 wall_t = 3
 bot_t  = 4
 
-$ir_top = rim_r - wall_t
-$ir_bot = base_r - wall_t
+ir_top = rim_r - wall_t
+ir_bot = base_r - wall_t
 
-$outer = sketch [
+outer = sketch [
   (0, 0), (base_r, 0),
   (rim_r, cup_h), (0, cup_h)
 ] | revolve Y
 
 # 空洞は口側を少し伸ばして、ブーリアンの境界を面と重ねない
-$cavity = sketch [
-  (0, bot_t), ($ir_bot, bot_t),
-  ($ir_top, cup_h + 1), (0, cup_h + 1)
+cavity = sketch [
+  (0, bot_t), (ir_bot, bot_t),
+  (ir_top, cup_h + 1), (0, cup_h + 1)
 ] | revolve Y
 
-$outer | diff $cavity
+outer | diff cavity
 ```
 
 断面スケッチは `x = 半径方向`, `y = 高さ` の2D座標で、**x >= 0** に収める。
@@ -194,15 +194,15 @@ width  = 40
 t      = 5
 rib_t  = 4
 
-$vertical   = box t width arm | floor
-$horizontal = box arm width t | floor | translate (arm / 2 - t / 2) 0 0
+vertical   = box t width arm | floor
+horizontal = box arm width t | floor | translate (arm / 2 - t / 2) 0 0
 
 # XZ平面に直角三角形を描いて、Y方向に押し出す
-$rib = workplane XZ
+rib = workplane XZ
   | polyline [(t, t), (arm - t, t), (t, arm - t)]
   | extrude rib_t
 
-union [$vertical, $horizontal, $rib]
+union [vertical, horizontal, rib]
 ```
 
 任意の平面上に断面を描きたいときは `workplane XY|XZ|YZ` から始める。
@@ -212,10 +212,10 @@ union [$vertical, $horizontal, $rib]
 ## 6. 面の上に任意断面を置いて抜く
 
 ```poly
-$slot = sketch [(5, 0), arc (5, 0) (0, -5) (-5, 0), (0, 7), (5, 0)]
+slot = sketch [(5, 0), arc (5, 0) (0, -5) (-5, 0), (0, 7), (5, 0)]
 
 box 40 40 20
- | faces >Z | place $slot | cut
+ | faces >Z | place slot | cut
 ```
 
 `place` は変数に入れた2D形状を選択面の上に配置する。`cut` は深さ省略で貫通。
@@ -232,12 +232,12 @@ lid_t = 3
 clear = 0.2      # すべり嵌合
 
 # 本体の内寸に対してクリアランス分だけ小さい嵌合部
-$inner = rect (box_w - wall * 2 - clear * 2) (box_d - wall * 2 - clear * 2)
+inner = rect (box_w - wall * 2 - clear * 2) (box_d - wall * 2 - clear * 2)
   | extrude 4
 
 rect box_w box_d
  | extrude lid_t
- | union ($inner | translate 0 0 lid_t)
+ | union (inner | translate 0 0 lid_t)
 ```
 
 クリアランスの値は `dimensions.md` の表から選ぶ。

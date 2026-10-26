@@ -79,12 +79,12 @@ group type hidden`) are named in `references/cheatsheet.md` and explained in
 to a variable, state what must hold, then emit the shape:
 
 ```poly
-$case = box width depth height | faces >Z | shell wall
-assert $case.solids == 1                 # one piece
-assert $case.bbox.x ~ width              # the size that was asked for (1% tolerance)
-assert $case.bbox.z ~ height
-assert clear($case, $lid)                # parts do not interfere
-$case
+case = box width depth height | faces >Z | shell wall
+assert case.solids == 1                 # one piece
+assert case.bbox.x ~ width              # the size that was asked for (1% tolerance)
+assert case.bbox.z ~ height
+assert clear(case, lid)                # parts do not interfere
+case
 ```
 
 A broken assert is `assert.failed` with the measured value quoted; `verify` and
@@ -92,7 +92,7 @@ A broken assert is `assert.failed` with the measured value quoted; `verify` and
 next edit, by you or by someone else, is checked against the same intent. The
 properties (`volume area solids faces edges verts bbox valid`, `bbox.x/y/z/min/
 max/center`) and `~ ... tol:` are in `references/cheatsheet.md`. `print "name"
-$case.volume` reports a value in the same report without failing anything.
+case.volume` reports a value in the same report without failing anything.
 
 Consult `references/cheatsheet.md` for syntax and `references/recipes.md` for
 the standard shapes (enclosure, boss, rib, drainage grid, revolved vessel).
@@ -276,7 +276,7 @@ poly explain CODE             # the long form of a diagnostic code (no args: lis
 poly ops [KEYWORD] [--json]   # every operation's arguments, named arguments and contexts,
                               # from the implementation. Check here before guessing a key
 
-poly measure FILE '<expr>' [--json]  # one value from the built model: '$lid.bbox.z', 'clear($a, $b)'
+poly measure FILE '<expr>' [--json]  # one value from the built model: 'lid.bbox.z', 'clear(a, b)'
 poly section FILE [--plane xz,yz|Z=10] [-o OUT.svg] [--json]   # loop table in mm
 poly build FILE -o OUT.svg [--view iso|front,right] [--view-size 320] [--no-hidden]
 

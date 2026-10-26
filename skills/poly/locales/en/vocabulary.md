@@ -15,12 +15,12 @@ the operation that does it. The syntax itself is in the
 | bevel, chamfer, break the edge | `chamfer c` | `edges >Z \| chamfer 1` |
 | hollow out, make it a box/cup, wall it | `faces` + `shell t` | `faces >Z \| shell 2` |
 | cut away, subtract, remove | `diff` | `\| diff (cylinder 5 30)` |
-| add, join, stick on | `union` | `\| union $boss` |
+| add, join, stick on | `union` | `\| union boss` |
 | keep only the overlap | `inter` | `\| inter (sphere 20)` |
 | hole, drill, bore | `hole r` | `faces >Z \| hole 3` |
 | counterbore, countersink | two `hole`s, stepped | `hole 3.4`, then a shallow `hole 6` |
 | through hole | `hole r` with no depth | omit the depth and it goes through |
-| slot, groove, channel | a thin `box`, then `diff` | `\| diff ($slot)` |
+| slot, groove, channel | a thin `box`, then `diff` | `\| diff (slot)` |
 | offset, clearance, relief | `offset d` | `\| offset -1` (inward) |
 | make the plate thicker | the `extrude` value | — |
 

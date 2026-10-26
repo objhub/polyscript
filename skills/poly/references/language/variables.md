@@ -5,17 +5,18 @@
 
 ## Variables
 
-The `$` prefix on variable names is optional. Both `$w = 80` and `w = 80` work. Reserved words (`box`, `cylinder`, `if`, `for`, etc.) cannot be used as variable names.
+A variable is a plain name: give it a value with `=`, then use it wherever a value goes. `def` parameters and loop variables are plain names too.
 
 ```
 w = 80
 h = 60
 box w h 10
 
-# $-prefixed form also works (backward compatible)
-$w = 80
-box $w $h 10
+def plate(size, t) = box size size t
+pins = [cylinder 2 10 at:(x, 0) for x in [-20, 20]]
 ```
 
-`w` and `$w` are **the same variable**, so a number and a shape cannot share a name. `bore = 5` followed by `$bore = cylinder 3 10` overwrites the number, and the error appears later, wherever `bore` is used as a number. `poly check` warns `var.dollar-alias` when one name is assigned in both spellings; give the shape its own name (`$bore_cut`).
+Reserved words (`box`, `shell`, `offset`, `for`, ...) cannot be variable names.
+
+A `$` in front of a name (`$w`) is accepted for compatibility with older files and means the same variable as `w`; do not use it in new files. It is still the only way to use a reserved word as a variable name (`$shell = 2`). Assigning one name both ways (`bore = 5`, then `$bore = cylinder 3 10`) overwrites the value, and `poly check` warns `var.dollar-alias`.
 

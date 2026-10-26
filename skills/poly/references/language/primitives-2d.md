@@ -80,36 +80,36 @@ sketch [
 ] | extrude 10
 
 # D-shaped hole
-$r = 3
+r = 3
 sketch [
-  (-$r, $r),
-  (-$r, -$r),
-  arc (-$r, -$r) (0, -$r - 1) ($r, -$r),
-  ($r, $r),
-  (-$r, $r)
+  (-r, r),
+  (-r, -r),
+  arc (-r, -r) (0, -r - 1) (r, -r),
+  (r, r),
+  (-r, r)
 ]
 
 # True quarter arc (center specified)
 sketch [
-  ($r, 0),
-  arc ($r, 0) (0, $r) center:(0, 0),
+  (r, 0),
+  arc (r, 0) (0, r) center:(0, 0),
   (0, 0),
-  ($r, 0)
+  (r, 0)
 ]
 
 # Rounded rectangle (radius form is the most concise)
-$w = 20
-$h = 10
-$cr = 2
+w = 20
+h = 10
+cr = 2
 sketch [
-  ($w/2 - $cr, -$h/2),
-  arc ($w/2 - $cr, -$h/2) ($w/2, -$h/2 + $cr) radius:$cr,
-  ($w/2, $h/2 - $cr),
-  arc ($w/2, $h/2 - $cr) ($w/2 - $cr, $h/2) radius:$cr,
-  (-$w/2 + $cr, $h/2),
-  arc (-$w/2 + $cr, $h/2) (-$w/2, $h/2 - $cr) radius:$cr,
-  (-$w/2, -$h/2 + $cr),
-  arc (-$w/2, -$h/2 + $cr) (-$w/2 + $cr, -$h/2) radius:$cr
+  (w/2 - cr, -h/2),
+  arc (w/2 - cr, -h/2) (w/2, -h/2 + cr) radius:cr,
+  (w/2, h/2 - cr),
+  arc (w/2, h/2 - cr) (w/2 - cr, h/2) radius:cr,
+  (-w/2 + cr, h/2),
+  arc (-w/2 + cr, h/2) (-w/2, h/2 - cr) radius:cr,
+  (-w/2, -h/2 + cr),
+  arc (-w/2, -h/2 + cr) (-w/2 + cr, -h/2) radius:cr
 ] | extrude 5
 ```
 

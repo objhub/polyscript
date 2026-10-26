@@ -10,15 +10,15 @@
 **Parentheses rules**:
 
 - Simple coordinates (literals/variables): parentheses can be omitted (recommended). `at:20 0 0`
-- With expressions: parentheses required. `at:($x+1, $y+1)`
+- With expressions: parentheses required. `at:(x+1, y+1)`
 - Coordinate list: brackets required. `at:[(0,0), (10,0)]`
 - Parenthesized `at:(x, y)` is always valid.
 - For array duplication, use the `| grid` or `| polar` pipe operations.
 
 ```
 sphere 5 at:20 0 0                      # simple position (omit parentheses)
-sphere 5 at:$x $y                       # variables are fine too
-sphere 5 at:($x+1, $y+1)               # expressions require parentheses
+sphere 5 at:x y                       # variables are fine too
+sphere 5 at:(x+1, y+1)               # expressions require parentheses
 sphere 5 at:[(0,0), (10,0), (20,0)]    # multiple positions (brackets required)
 sphere 5 | polar 6 20                   # circular array (pipe operation)
 sphere 5 | grid 3 3 20                  # grid array (pipe operation)

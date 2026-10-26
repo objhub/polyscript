@@ -132,7 +132,7 @@ cylinder 25 5
 @param 20..120
 width = 80
 
-box $width 60 10 | fillet 2
+box width 60 10 | fillet 2
 ```
 
 ```bash

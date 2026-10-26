@@ -16,13 +16,9 @@
 ### Comparison and Logic
 
 ```
-==  !=  <  >  <=  >=  ~
+==  !=  <  >  <=  >=
 and  or
 ```
-
-`a ~ b` is approximate equality for numbers: `true` when the difference is within
-1% of the larger value. `assert ... tol:` changes the tolerance (see "Measuring and
-checking" below).
 
 ### Conditional
 
@@ -33,9 +29,9 @@ if condition then expr else expr
 `if`/`then`/`else` is an expression, so it can be used inline:
 
 ```
-$use_round = true
-$shape = if $use_round then circle 10 else rect 20 15
-$shape | extrude 5
+use_round = true
+shape = if use_round then circle 10 else rect 20 15
+shape | extrude 5
 ```
 
 A branch can be a shape command without parentheses. A pipe cannot sit inside a
@@ -43,32 +39,32 @@ branch: `|` binds loosest, so a `|` after the expression applies to the result o
 the whole `if`. To pipe inside a branch, wrap it in parentheses:
 
 ```
-if $use_round then circle 10 else rect 20 15 | extrude 5    # extrudes either one
-if $flag then (circle 10 | extrude 5) else (rect 20 15 | extrude 3)
-box 40 30 (if $deep then 20 else 10)                         # an if as an argument needs parentheses
+if use_round then circle 10 else rect 20 15 | extrude 5    # extrudes either one
+if flag then (circle 10 | extrude 5) else (rect 20 15 | extrude 3)
+box 40 30 (if deep then 20 else 10)                         # an if as an argument needs parentheses
 ```
 
 ### List Comprehension
 
 ```
-[$expr for $var in range($n)]
+[expr for var in range(n)]
 ```
 
 Practical examples:
 
 ```
 # Generate 6 boxes spaced 15mm apart
-union [box 10 10 10 at:($i * 15, 0) for $i in range(6)]
+union [box 10 10 10 at:(i * 15, 0) for i in range(6)]
 
 # Concentric circles
-[$r * 5 for $r in range(1, 6)]
+[r * 5 for r in range(1, 6)]
 ```
 
 Nested comprehensions are also supported:
 
 ```
 # Generate a 2D grid
-[[$i + $j * 10 for $i in range(3)] for $j in range(2)]
+[[i + j * 10 for i in range(3)] for j in range(2)]
 # → [[0, 1, 2], [10, 11, 12]]
 ```
 
