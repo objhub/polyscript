@@ -14,7 +14,7 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { parse } from '../src/parser.js';
 import { Evaluator } from '../src/evaluator.js';
-import { validate } from '../src/validator.js';
+import { validate, dollarAliases } from '../src/validator.js';
 import { initOC } from '../src/ocp-kernel/init.js';
 import type { OC, WpState } from '../src/ocp-kernel/types.js';
 
@@ -214,5 +214,18 @@ describe('built-in names cannot be taken by a def (issue 2026-09-25)', () => {
     const src = 'def rad($R, $k, $t) = $R * (1 + 0.08 * cos(8 * 360 * $k / 48)) - $t\n'
       + 'def px($R, $k, $rot, $t) = rad($R, $k, $t) * cos(360 * $k / 48 + $rot)';
     expect(codes(src)).toEqual(['def.shadows-builtin', 'call.arity']);
+  });
+});
+
+describe('one variable assigned as name and $name (var.dollar-alias)', () => {
+  it('reports the assignment that switches spelling, with the first line', () => {
+    const hits = dollarAliases(parse('bore = 5\nbox 1 1 1\n$bore = cylinder 3 10\n$bore = cylinder 2 10'));
+    expect(hits).toEqual([{ name: 'bore', dollar: true, first: 1, line: 3, column: 1 }]);
+    expect(dollarAliases(parse('$w = 80\nw = 90'))).toMatchObject([{ name: 'w', dollar: false, first: 1, line: 2 }]);
+  });
+
+  it('one spelling throughout, or $ only in references, is fine', () => {
+    expect(dollarAliases(parse('w = 80\nw = w + 1\nbox $w w 10'))).toEqual([]);
+    expect(dollarAliases(parse('$a = box 1 1 1\n$a = $a | fillet 0.1'))).toEqual([]);
   });
 });

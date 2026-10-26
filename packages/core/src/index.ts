@@ -5,7 +5,7 @@ export type { PreprocessResult } from  './preprocessor.js';
 export { Lexer, TokenType } from './lexer.js';
 export type { Token } from './lexer.js';
 export { Parser, ParseError, parse, parseExpression } from './parser.js';
-export { validate } from './validator.js';
+export { validate, dollarAliases } from './validator.js';
 export type { Context, ValidationError } from './validator.js';
 export { Evaluator, Environment, EvalError, evaluate, evaluateExpressions, resultShape, resultColorParts, isWpState } from './evaluator.js';
 export { formatValue, propertyOf, shapesClear } from './eval/measure.js';

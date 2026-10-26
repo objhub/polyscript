@@ -186,6 +186,25 @@ function pipelineResultContext(pipeline: Pipeline): Context | null {
   return ctx;
 }
 
+/** Assignments that spell a name differently from its previous assignment
+ *  (`bore = 5`, then `$bore = cylinder 3 10`); `first` is that previous line. The `$` is optional, so both
+ *  are one variable and the second overwrites the first; a model that writes
+ *  both almost always meant two. Not an error: reassignment itself is legal. */
+export function dollarAliases(program: Program): { name: string; dollar: boolean; first: number; line: number; column: number }[] {
+  const lastSeen = new Map<string, { dollar: boolean; line: number }>();
+  const out: { name: string; dollar: boolean; first: number; line: number; column: number }[] = [];
+  for (const stmt of program.statements) {
+    if (stmt.type !== 'Assignment') continue;
+    const dollar = stmt.dollar === true;
+    const seen = lastSeen.get(stmt.name);
+    if (seen && seen.dollar !== dollar) {
+      out.push({ name: stmt.name, dollar, first: seen.line, line: stmt.loc?.line ?? 0, column: stmt.loc?.column ?? 1 });
+    }
+    lastSeen.set(stmt.name, { dollar, line: stmt.loc?.line ?? 0 });
+  }
+  return out;
+}
+
 // --- Validator ---
 
 export function validate(program: Program): ValidationError[] {

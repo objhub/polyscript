@@ -144,7 +144,7 @@ describe('diagnostics', () => {
       expect(r.code, c).toBe(0);
       expect(r.stdout, c).toContain('Fix');
     }
-  });
+  }, 30_000);   // one poly process per code
 
   it('an unknown code is refused with the list of known ones', () => {
     const r = run(['explain', 'nope.nope']);

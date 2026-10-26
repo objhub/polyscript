@@ -22,7 +22,10 @@ export interface NamedArg {
 
 export interface Program { type: 'Program'; statements: Statement[]; loc?: SourceLocation; }
 export interface ParamAnnotation { type: 'ParamAnnotation'; options: Record<string, any>; loc?: SourceLocation; }
-export interface Assignment { type: 'Assignment'; name: string; value: Expression; annotation?: ParamAnnotation; loc?: SourceLocation; }
+/** `dollar` is set when the name was written `$name`. The `$` is optional and
+ *  both spellings name the same variable; it is kept only so a model that
+ *  assigns both (`bore = 5`, then `$bore = cylinder ...`) can be warned. */
+export interface Assignment { type: 'Assignment'; name: string; value: Expression; annotation?: ParamAnnotation; dollar?: true; loc?: SourceLocation; }
 export interface FuncDef { type: 'FuncDef'; name: string; params: string[]; body: Expression; loc?: SourceLocation; }
 export interface Import { type: 'Import'; path: string; loc?: SourceLocation; }
 /** `assert <condition> [tol:<n>[%]]`. `text` is the condition as written, for

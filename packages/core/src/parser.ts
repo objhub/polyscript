@@ -354,7 +354,7 @@ export class Parser {
     this.advance(); // '='
     const value = this.parsePipeExpr();
     if (this.match(TokenType.Newline)) this.advance();
-    return { type: 'Assignment', name, value, loc: this.loc(startToken) };
+    return { type: 'Assignment', name, value, ...(hasDollar ? { dollar: true as const } : {}), loc: this.loc(startToken) };
   }
 
   /**

@@ -22,7 +22,7 @@ export type Severity = 'error' | 'warning' | 'info';
  * The closed set of diagnostic codes.
  *
  * Namespaced by phase so the prefix alone says where the run died:
- * `syntax.` parse, `context.`/`arg.`/`def.`/`call.` validation, `selector.`/`eval.` runtime,
+ * `syntax.` parse, `context.`/`arg.`/`def.`/`call.`/`var.` validation, `selector.`/`eval.` runtime,
  * `check.` post-build observations (informational -- never fail a build --
  * except `check.sweep-distorted`, a kernel warning that fails under --strict),
  * `assert.`/`print` the model's own statements (an `assert` that failed is an
@@ -37,6 +37,7 @@ export const DIAGNOSTIC_CODES = [
   'arg.unknown-option',
   'def.shadows-builtin',
   'call.arity',
+  'var.dollar-alias',
   'selector.empty',
   'selector.unknown',
   'eval.error',
@@ -245,6 +246,17 @@ const EXPLANATIONS: Record<DiagnosticCode, Explanation> = {
     fix: 'Pass the arguments the built-in takes: `sin(30)`, `atan2(y, x)`,\n'
       + '`range(0, 10, 2)`. If you meant your own function, give it a name\n'
       + 'that is not a built-in (see def.shadows-builtin).',
+  },
+  'var.dollar-alias': {
+    title: 'One variable assigned as both `name` and `$name`',
+    why: 'The `$` in front of a name is optional: `bore` and `$bore` are the\n'
+      + 'same variable, so the second assignment overwrites the first. Writing\n'
+      + '`bore = 5` and then `$bore = cylinder 3 10` replaces the number with a\n'
+      + 'shape, and the error comes later, wherever `bore` is used as a number.',
+    fix: 'Give the two values different names:\n'
+      + '  bore = 5\n'
+      + '  $bore_cut = cylinder bore 10\n'
+      + 'If the reassignment is intended, spell the name the same way both times.',
   },
   'selector.empty': {
     title: 'A selector matched nothing',

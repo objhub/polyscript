@@ -13,7 +13,7 @@ import { spawn } from 'node:child_process';
 import { basename, dirname, resolve, extname, relative } from 'node:path';
 import { Command } from 'commander';
 import {
-  parse, parseExpression, ParseError, validate, Evaluator, resultShape, resultColorParts, formatValue, isWpState,
+  parse, parseExpression, ParseError, validate, dollarAliases, Evaluator, resultShape, resultColorParts, formatValue, isWpState,
   extractParams, unknownParamOptions, PARAM_OPTIONS, Trace, drainDiagnostics, makeDiagnostic, formatDiagnostic, explain,
   DIAGNOSTIC_CODES, asDiagnosticCode, fingerprint, runChecks, bundleImports, BundleError,
   describeOps, opSignature, opDetail,
@@ -245,7 +245,7 @@ async function loadModel(file: string, opts: LoadOptions): Promise<LoadedModel> 
       fail('params', typeErrors.map(toDiag), EXIT_IO);
     }
   }
-  diagnostics.push(...commentedParamDiagnostics(source));
+  diagnostics.push(...sourceWarnings(source));
   for (const p of unknownParams(source, overrides, extractParams)) {
     diagnostics.push(makeDiagnostic('param.unknown', 'warning',
       `-D ${p}: no top-level assignment found in input`,
@@ -349,15 +349,18 @@ program
   .description('PolyScript — Parametric CAD DSL')
   .version(VERSION);
 
-/** `# @param` above an assignment (a comment, not an annotation), and
- *  @param option keys the annotation does not have. */
-function commentedParamDiagnostics(source: string): Diagnostic[] {
+/** Warnings read off the source: `# @param` above an assignment (a comment,
+ *  not an annotation), @param option keys the annotation does not have, and
+ *  a variable assigned as both `name` and `$name`. */
+function sourceWarnings(source: string): Diagnostic[] {
   const out = commentedParamLines(source).map(line => makeDiagnostic('param.commented', 'warning',
     "'# @param' is a comment, so the next variable is not a parameter",
     { hint: "drop the '#': '@param 1..10 desc:\"...\"' on the line above the assignment", loc: { line, column: 1 } }));
   let unknown: { key: string; line: number }[] = [];
+  let aliases: ReturnType<typeof dollarAliases> = [];
   try {
     unknown = unknownParamOptions(source);
+    aliases = dollarAliases(parse(source));
   } catch {
     // a parse error is reported by the parse phase
   }
@@ -365,6 +368,12 @@ function commentedParamDiagnostics(source: string): Diagnostic[] {
     out.push(makeDiagnostic('param.unknown-option', 'warning',
       `@param has no option '${u.key}'; it is ignored`,
       { hint: `options: ${PARAM_OPTIONS.join(' ')}`, loc: { line: u.line, column: 1 } }));
+  }
+  for (const a of aliases) {
+    const [now, before] = a.dollar ? [`$${a.name}`, a.name] : [a.name, `$${a.name}`];
+    out.push(makeDiagnostic('var.dollar-alias', 'warning',
+      `'${now}' is the same variable as '${before}' (line ${a.first}); this assignment overwrites it`,
+      { hint: `give it another name, e.g. '${a.dollar ? '$' : ''}${a.name}_2'`, loc: { line: a.line, column: a.column } }));
   }
   return out;
 }
@@ -388,7 +397,7 @@ program
         emit(asJson, { ok: false, phase: 'validate', file: name, diagnostics: diags }, []);
         process.exit(EXIT_SEMANTIC);
       }
-      const warnings = commentedParamDiagnostics(source);
+      const warnings = sourceWarnings(source);
       if (!asJson) printDiagnostics(warnings, name);
       emit(asJson, { ok: true, phase: 'validate', file: name, diagnostics: warnings },
         [`✓ ${name}: OK`]);
