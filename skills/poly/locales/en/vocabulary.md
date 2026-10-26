@@ -34,7 +34,7 @@ the operation that does it. The syntax itself is in the
 | follow a path, pipe, tube | `wire`/`helix` + `sweep` | `wire [...] \| sweep (circle 3)` |
 | spring, the path of a thread | `helix` + `sweep` | `helix 5 30 10 \| sweep (circle 2)` |
 | loft between two shapes | `loft [sections] h` | `loft [rect 8 8] 10` |
-| taper, draft | `extrude h draft:5` | positive widens toward the top |
+| taper, draft | `extrude h draft:5` | positive narrows toward the top, negative widens |
 | wedge, ramp | `wedge` | `wedge 20 10 15 5` |
 
 ## Position and orientation

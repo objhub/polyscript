@@ -23,7 +23,7 @@ circle 5 | loft [rect 8 8] 10
 circle 5 | loft [rect 8 8, circle 3] [5, 15]
 ```
 
-`draft:` specifies a draft angle (taper) in degrees. A positive value widens outward in the extrusion direction.
+`draft:` specifies a draft angle (taper) in degrees. A positive value narrows the shape toward the far end of the extrusion, as a moulded part tapers for release; a negative value widens it. The base keeps the size you drew: `rect 20 20 | extrude 10 draft:10` is 20 across at the bottom and 16.47 at the top (20 - 2 x 10 x tan 10deg).
 
 `ruled:true` interpolates between sections with straight lines (the default is a smooth surface).
 

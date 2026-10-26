@@ -1,6 +1,6 @@
 # PolyScript language: Overview
 
-> GENERATED from docs/content/en/language.md (Overview; Variables; Import; Comments) -- do not edit.
+> GENERATED from docs/content/en/language.md (Overview; Import; Comments) -- do not edit.
 > Change the docs page, then run: bun scripts/gen-skill-docs.ts
 
 ## Overview
@@ -20,20 +20,6 @@ sphere 8
 ```
 
 To combine shapes explicitly, use `union [...]`.
-
-## Variables
-
-The `$` prefix on variable names is optional. Both `$w = 80` and `w = 80` work. Reserved words (`box`, `cylinder`, `if`, `for`, etc.) cannot be used as variable names.
-
-```
-w = 80
-h = 60
-box w h 10
-
-# $-prefixed form also works (backward compatible)
-$w = 80
-box $w $h 10
-```
 
 ## Import
 

@@ -179,7 +179,7 @@ export const OP_SPECS: OpSpec[] = [
     args: [{ name: 'depth', type: 'number', optional: true, desc: 'depth (default through)' }], named: [], example: 'cut 3' },
   { keyword: 'extrude', kind: 'pipe', nodeTypes: ['Extrude'], desc: 'extrude a Face along the plane normal',
     args: [{ name: 'h', type: 'number', desc: 'height' }],
-    named: [{ key: 'draft', type: 'number', desc: 'draft angle in degrees (positive widens)' }], example: 'extrude 10' },
+    named: [{ key: 'draft', type: 'number', desc: 'draft angle in degrees (positive narrows toward the top, negative widens)' }], example: 'extrude 10' },
   { keyword: 'revolve', kind: 'pipe', nodeTypes: ['Revolve'], desc: 'revolve a Face about an axis',
     args: [{ name: 'axis', type: 'axis', desc: 'X Y or Z' }, { name: 'angle', type: 'number', optional: true, desc: 'degrees (default 360)' }],
     named: [], example: 'revolve Y 180' },
