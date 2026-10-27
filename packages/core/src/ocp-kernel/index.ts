@@ -92,4 +92,5 @@ export type { SectionAxis, SectionSpec, SectionLoop, SectionResult, SectionOptio
 export { colorParts, hasDistinctColors } from './color-parts.js';
 export type { ColorPart, RGB } from './color-parts.js';
 export { memoizeKernel, MEMOIZED } from './memo.js';
+export { memoizeMeasures, MEASURED } from './measure-memo.js';
 export type { KernelMemo, KernelMemoStats, KernelMemoOptions } from './memo.js';

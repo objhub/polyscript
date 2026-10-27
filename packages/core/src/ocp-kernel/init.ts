@@ -4,6 +4,7 @@
 
 import type { OC } from './types.js';
 import { OcctKernel } from 'occt-wasm';
+import { memoizeMeasures } from './measure-memo.js';
 
 let _cachedOC: OC | null = null;
 
@@ -18,8 +19,9 @@ export async function initOC(
   const embedded = (globalThis as Record<string, unknown>).__POLY_OCCT_WASM__;
   const wasm = options?.wasm ?? (embedded as string | undefined);
   const kernel = await OcctKernel.init(wasm ? { wasm } : undefined);
-  _cachedOC = kernel;
-  return kernel;
+  // Volume, area and bbox are read many times per shape; answer once.
+  _cachedOC = memoizeMeasures(kernel);
+  return _cachedOC;
 }
 
 // Allow injecting a pre-initialized kernel (for browser or test)
