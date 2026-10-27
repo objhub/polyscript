@@ -593,6 +593,12 @@ export class Evaluator {
       return shapesClear(this.oc, this.evalExpr(argExprs[0]), this.evalExpr(argExprs[1]));
     }
 
+    // len(list): the one builtin whose argument is not a number
+    if (name === 'len') {
+      if (argExprs.length !== 1) throw new EvalError(`len() takes 1 argument, got ${argExprs.length}`);
+      return MATH_FUNCS.len(this.evalExpr(argExprs[0]) as unknown as number);
+    }
+
     // Check math builtins
     if (name in MATH_FUNCS) {
       const args = argExprs.map(e => asNumber(this.evalExpr(e)));

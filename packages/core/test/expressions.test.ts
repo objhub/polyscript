@@ -780,6 +780,13 @@ box 10 10 10`);
       expect(evalExpr('$x = 10 - 4')).toBe(6);
     });
 
+    // len() takes a list, not a number: it must not go through the numeric coercion of the math builtins
+    it('evaluates len() of a list literal and of range()', () => {
+      expect(evalExpr('$x = len([1, 2, 3])')).toBe(3);
+      expect(evalExpr('$x = len(range(5))')).toBe(5);
+      expect(evalExpr('$x = len([])')).toBe(0);
+    });
+
     it('evaluates multiplication', () => {
       expect(evalExpr('$x = 3 * 7')).toBe(21);
     });
