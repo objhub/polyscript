@@ -92,7 +92,9 @@ describe('check.boolean-volume', () => {
   it('flags a union that lost material', () => {
     const k = lying('fuse', (a) => a);
     // fuse is also what the empty-inter check and the 2D path use; keep to 3D.
-    expect(evalCodes('(box 5 5 5) + (box 20 20 20 | translate 30 0 0)', k)).toContain('check.boolean-volume');
+    // The operands overlap: parts that are apart never reach the fuse (they
+    // are laid side by side as a compound, union-apart.test.ts).
+    expect(evalCodes('(box 5 5 5) + (box 20 20 20 | translate 3 0 0)', k)).toContain('check.boolean-volume');
   });
 
   it('catches the cones of issue 2026-10-26 when the kernel loses them', () => {

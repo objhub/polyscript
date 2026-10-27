@@ -118,6 +118,40 @@ function rejectMixed(op: BoolOp, s: WpState, other: WpState): never {
   );
 }
 
+/** Loose boxes for the apart test: analytic extents plus the shape tolerance,
+ *  so they contain the precise box, cost nothing on freeform faces, and do
+ *  not move once a preview has meshed the shape (see faceCenter). */
+const BBOX_LOOSE = { precise: false, useTriangulation: false } as const;
+
+/** Two boxes closer than this are taken as meeting. Well under any modelled
+ *  clearance (a print plate leaves millimetres, a mechanism tenths) and above
+ *  the kernel's confusion tolerance, so a part placed exactly on another, or
+ *  a hair into it, still goes through the fuse that joins them. */
+const APART_GAP = 1e-6;
+
+/**
+ * Two solids whose bounding boxes do not meet share no face, edge or volume,
+ * so their union is the two of them side by side -- the compound
+ * BRepAlgoAPI_Fuse itself returns for disjoint operands, after a general
+ * fuse that intersects every face pair. On a print plate the union of 33
+ * parts spent 20s doing that (devel/perf.md 2026-10-27); here it is two bbox
+ * reads. Returns null when the boxes meet, or either side holds no solid,
+ * and the caller fuses as before. The result is flat (the solids of both
+ * sides, not a compound of compounds), as a fuse result is.
+ */
+function compoundIfApart(oc: OC, a: Shape, b: Shape): Shape | null {
+  const p = oc.getBoundingBox(a, BBOX_LOOSE);
+  const q = oc.getBoundingBox(b, BBOX_LOOSE);
+  const apart = p.xmax + APART_GAP < q.xmin || q.xmax + APART_GAP < p.xmin
+    || p.ymax + APART_GAP < q.ymin || q.ymax + APART_GAP < p.ymin
+    || p.zmax + APART_GAP < q.zmin || q.zmax + APART_GAP < p.zmin;
+  if (!apart) return null;
+  const sa = oc.getSubShapes(a, 'solid');
+  const sb = oc.getSubShapes(b, 'solid');
+  if (!sa.length || !sb.length) return null;
+  return oc.makeCompound([...sa, ...sb]);
+}
+
 /**
  * Fuse two solids. BRepAlgoAPI_Fuse occasionally fails on disjoint complex
  * shapes; a compound of the two is the safety net (the parts are then
@@ -216,7 +250,13 @@ function applyBool(s: WpState, other: WpState, op: BoolOp): WpState {
   if (other.shape) {
     if (s.shape) {
       let shape: Shape;
-      if (op === 'fuse') shape = fuse3D(oc, s.shape, other.shape);
+      if (op === 'fuse') {
+        // No boolean ran, so there is no debris to prune and no volume
+        // invariant that could have broken.
+        const apart = compoundIfApart(oc, s.shape, other.shape);
+        if (apart) return cloneState(s, { shape: apart });
+        shape = fuse3D(oc, s.shape, other.shape);
+      }
       else if (op === 'cut') shape = ensureSolid(oc, oc.cut(s.shape, other.shape));
       else shape = ensureSolid(oc, oc.common(s.shape, other.shape));
       shape = pruneDebrisSolids(oc, shape);
