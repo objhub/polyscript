@@ -24,7 +24,8 @@ export type Severity = 'error' | 'warning' | 'info';
  * Namespaced by phase so the prefix alone says where the run died:
  * `syntax.` parse, `context.`/`arg.`/`def.`/`call.`/`var.` validation, `selector.`/`eval.` runtime,
  * `check.` post-build observations (informational -- never fail a build --
- * except `check.sweep-distorted`, a kernel warning that fails under --strict),
+ * except `check.sweep-distorted`, `check.boolean-volume` and
+ * `check.empty-result`, warnings that fail under --strict),
  * `assert.`/`print` the model's own statements (an `assert` that failed is an
  * error; `print` is an info line), `param.`/`io.`/`live.` the CLI's own surface.
  */
@@ -45,6 +46,8 @@ export const DIAGNOSTIC_CODES = [
   'check.no-effect',
   'check.brep-invalid',
   'check.sweep-distorted',
+  'check.boolean-volume',
+  'check.empty-result',
   'assert.failed',
   'attr.unknown',
   'print',
@@ -364,6 +367,29 @@ const EXPLANATIONS: Record<DiagnosticCode, Explanation> = {
       + 'last two is the usual cause (thread 8 30 2 for an M16 x 2 of length 30).',
     fix: 'Check the argument order. If a thread shorter than one turn really is\n'
       + 'intended, ignore the warning.',
+  },
+  'check.boolean-volume': {
+    title: 'A boolean produced a volume no correct boolean can',
+    why: 'diff can only remove material, and no more than the tool holds;\n'
+      + 'inter is never larger than its smaller operand, and empty only when\n'
+      + 'the operands do not overlap; union lies between the larger operand and\n'
+      + 'the two together. OCCT occasionally breaks one of these silently --\n'
+      + 'cones whose apexes nearly meet, surfaces that almost touch -- and the\n'
+      + 'result is a valid-looking solid with exit 0.',
+    fix: 'Trim the operands to the region that matters first (`inter` with a\n'
+      + 'box or sphere) and do the boolean on the trimmed pieces. Move a tool\n'
+      + 'that grazes a surface so it clearly overlaps it or clearly misses it.\n'
+      + 'A cone with r1 = 0 can often be replaced by one with a tiny flat tip.',
+  },
+  'check.empty-result': {
+    title: 'The model built, but the result has no solid in it',
+    why: 'The last statement evaluated to a shape that holds no solid: an\n'
+      + '`inter` of parts that do not overlap, a `diff` whose tool swallowed\n'
+      + 'the whole object, or a boolean the kernel lost. There is nothing to\n'
+      + 'print, yet the build used to succeed.',
+    fix: 'Bisect: print the volume of each operand (`print "a" a.volume`) and\n'
+      + 'check that the parts overlap the way you meant. If they do, the\n'
+      + 'kernel failed -- see `poly explain check.boolean-volume`.',
   },
   'check.sweep-distorted': {
     title: 'A sweep came out far from profile area x path length',

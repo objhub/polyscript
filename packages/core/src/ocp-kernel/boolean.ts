@@ -16,6 +16,7 @@ import type { OC, WpState, Shape } from './types.js';
 import { cloneState } from './types.js';
 import { ensureSolid } from './geometry.js';
 import { requireFaces, combineFaces, explodeFaces, replaneTo } from './faces.js';
+import { pushWarning } from '../diagnostics.js';
 
 type BoolOp = 'fuse' | 'cut' | 'common';
 const BOOL_NAME: Record<BoolOp, string> = { fuse: 'union', cut: 'diff', common: 'inter' };
@@ -131,6 +132,73 @@ function fuse3D(oc: OC, a: Shape, b: Shape): Shape {
   }
 }
 
+/** Relative slack for the volume invariants below, against the larger
+ *  operand. OCCT integrates the volume of a freeform solid only to a few 1e-4
+ *  (a correct union and diff in functionalprint/28-water-bird read 1.3e-4 and
+ *  3.2e-4 past their bounds); the failure that prompted the check grew a diff
+ *  by 2.4e-3, and an emptied inter is off by 100%. */
+const BOOL_VOLUME_TOL = 1e-3;
+
+/**
+ * `check.boolean-volume`: a 3D boolean whose result breaks an inequality no
+ * correct boolean can break.
+ *
+ *   diff   A - B   between vA - vB and vA
+ *   inter  A * B   at most min(vA, vB); empty only if A and B do not overlap
+ *   union  A + B   between max(vA, vB) and vA + vB
+ *
+ * OCCT fails some booleans silently (cones whose apexes nearly meet, issue
+ * 2026-10-26): the result is a valid B-Rep that is simply wrong, so these
+ * numbers are the only witness. Three volume integrations per boolean; the
+ * empty-inter case adds one fuse, only when the bounding boxes overlap.
+ */
+function warnIfVolumeImpossible(oc: OC, op: BoolOp, a: Shape, b: Shape, r: Shape): void {
+  let va: number, vb: number, vr: number;
+  try {
+    if (typeof oc.getVolume !== 'function') return;
+    va = Math.abs(oc.getVolume(a));
+    vb = Math.abs(oc.getVolume(b));
+    vr = Math.abs(oc.getVolume(r));
+  } catch {
+    return;
+  }
+  if (!(va > 0) || !(vb > 0)) return;
+  const tol = BOOL_VOLUME_TOL * Math.max(va, vb);
+  const name = BOOL_NAME[op];
+  let problem: string | null = null;
+  if (op === 'cut') {
+    if (vr > va + tol) problem = `grew the volume from ${fmt(va)} to ${fmt(vr)}`;
+    else if (vr < va - vb - tol) problem = `removed ${fmt(va - vr)}, more than the tool's whole volume ${fmt(vb)}`;
+  } else if (op === 'common') {
+    if (vr > Math.min(va, vb) + tol) problem = `came out at ${fmt(vr)}, larger than the smaller operand (${fmt(Math.min(va, vb))})`;
+    else if (vr <= tol && boxesOverlap(oc, a, b)) {
+      let vf: number;
+      try { vf = Math.abs(oc.getVolume(oc.fuse(a, b))); } catch { return; }
+      if (vf < va + vb - tol) problem = `came out empty, but the operands share ${fmt(va + vb - vf)} of volume`;
+    }
+  } else {
+    if (vr > va + vb + tol) problem = `came out at ${fmt(vr)}, more than both operands together (${fmt(va + vb)})`;
+    else if (vr < Math.max(va, vb) - tol) problem = `came out at ${fmt(vr)}, smaller than the larger operand (${fmt(Math.max(va, vb))})`;
+  }
+  if (!problem) return;
+  pushWarning(`${name}: the result ${problem} -- the kernel's boolean failed`, {
+    code: 'check.boolean-volume',
+    hint: 'OCCT is weak where surfaces nearly touch or a cone apex sits on the other operand -- '
+      + 'trim the operands first (inter with a box or sphere around the part that matters), '
+      + 'or move the tool so it clearly overlaps or clearly misses',
+  });
+}
+
+function boxesOverlap(oc: OC, a: Shape, b: Shape): boolean {
+  const p = oc.getBoundingBox(a), q = oc.getBoundingBox(b);
+  return p.xmin < q.xmax && q.xmin < p.xmax && p.ymin < q.ymax && q.ymin < p.ymax
+    && p.zmin < q.zmax && q.zmin < p.zmax;
+}
+
+function fmt(v: number): string {
+  return String(Math.round(v * 100) / 100);
+}
+
 /**
  * Dispatch one boolean on operand kinds.
  *
@@ -151,7 +219,9 @@ function applyBool(s: WpState, other: WpState, op: BoolOp): WpState {
       if (op === 'fuse') shape = fuse3D(oc, s.shape, other.shape);
       else if (op === 'cut') shape = ensureSolid(oc, oc.cut(s.shape, other.shape));
       else shape = ensureSolid(oc, oc.common(s.shape, other.shape));
-      return cloneState(s, { shape: pruneDebrisSolids(oc, shape) });
+      shape = pruneDebrisSolids(oc, shape);
+      warnIfVolumeImpossible(oc, op, s.shape, other.shape, shape);
+      return cloneState(s, { shape });
     }
     if (op === 'fuse' && isBlank(s)) return cloneState(s, { shape: other.shape });
     return rejectMixed(op, s, other);

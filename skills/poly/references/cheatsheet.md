@@ -314,7 +314,7 @@ assert clear(lid, body)          # 干渉なし
 print "vol" g.volume g.bbox      # 値を報告（info print）。verify / --json / live に出る
 ```
 
-プロパティは変数や括弧の直後に密着させる（`g.volume`、`(g | faces >Z).solids`）。
+プロパティは変数や括弧の直後に密着させる（`g.volume`、`(g | faces >Z).area`）。選択は選んだ面・エッジを測る。
 コマンドの引数にもそのまま書ける（`box g.bbox.x 10 10`）。
 
 ---

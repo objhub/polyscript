@@ -229,7 +229,7 @@ describe('assert and measure', () => {
   it('measure answers a query against the built model', () => {
     expect(run(['measure', f('asserted.poly'), '$b.bbox.z']).stdout.trim()).toBe('30');
     expect(run(['measure', f('asserted.poly'), '$b.solids == 1']).stdout.trim()).toBe('true');
-    const r = run(['measure', f('asserted.poly'), '($b | faces ">Z").solids', '--json']);
+    const r = run(['measure', f('asserted.poly'), '($b | faces ">Z").faces', '--json']);
     expect(r.code).toBe(0);
     expect(JSON.parse(r.stdout).value).toBe(1);
   });
@@ -240,6 +240,23 @@ describe('assert and measure', () => {
     const [d] = JSON.parse(r.stdout).diagnostics;
     expect(d.code).toBe('attr.unknown');
     expect(d.hint).toContain('.volume');
+  });
+});
+
+describe('empty result', () => {
+  beforeAll(() => {
+    writeFileSync(f('empty.poly'), '(box 10 10 10) * (box 10 10 10 | translate 50 0 0)\n');
+    writeFileSync(f('library.poly'), 'def peg(r) = cylinder r 10\nw = 5\n');
+  });
+
+  it('verify fails a model whose result holds no solid', () => {
+    const r = run(['verify', f('empty.poly'), '--json']);
+    expect(r.code).toBe(3);
+    expect(JSON.parse(r.stdout).diagnostics.map((d: { code: string }) => d.code)).toContain('check.empty-result');
+  });
+
+  it('verify still passes a file with no shape at all', () => {
+    expect(run(['verify', f('library.poly')]).code).toBe(0);
   });
 });
 

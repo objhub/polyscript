@@ -308,6 +308,16 @@ async function loadModel(file: string, opts: LoadOptions): Promise<LoadedModel> 
     try { info = shapeInfo(oc, shape); } catch { /* best-effort */ }
     // A face or wire has no mass; the fingerprint then goes without it.
     if (info) try { info.mass = massFacts(oc, shape); } catch { /* best-effort */ }
+    // A shape with nothing in it: an inter of parts that never overlap, a
+    // diff that ate everything, a boolean the kernel lost. It used to pass
+    // verify as "evaluated (no shape)", indistinguishable from a library file.
+    if (!info || info.topology.faces === 0) {
+      diagnostics.push(makeDiagnostic('check.empty-result', 'warning',
+        'the result is a shape with no solid in it', {
+          hint: 'print the volume of each operand of the last boolean and check that they overlap '
+            + '(poly explain check.empty-result)',
+        }));
+    }
   }
 
   return {
@@ -324,7 +334,7 @@ function assertFailures(diags: Diagnostic[]): Diagnostic[] {
 
 /** `1 solid  bbox 80x60x25  volume 15552.0  faces 11  fp 3f2a91b0c4d1` */
 function summaryLine(m: LoadedModel): string {
-  if (!m.info) return 'evaluated (no shape)';
+  if (!m.info) return m.shape ? 'empty result (no solid)' : 'evaluated (no shape)';
   const size = m.info.bbox.max.map((v, i) => round2(v - m.info!.bbox.min[i])).join('x');
   return [
     `${m.info.solids} solid${m.info.solids === 1 ? '' : 's'}`,

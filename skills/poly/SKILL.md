@@ -142,7 +142,10 @@ Read the trace table and confirm all of:
       `pass`
 - [ ] each step moved `volume` the way it should: `shell` and `hole` reduce it,
       `fillet` reduces it slightly *and* raises the `faces` count. A step that
-      changed nothing is reported as `check.no-effect`
+      changed nothing is reported as `check.no-effect`. A boolean whose result
+      no correct boolean could give (a `diff` that grew the volume, an empty
+      `inter` of overlapping parts) is `check.boolean-volume`, and a result
+      with no solid in it is `check.empty-result`; both fail `verify`
 
 The `line` column is the line in your source, so a finding maps straight back
 to the code to edit. The `fp` in the summary is a digest of the geometry: after

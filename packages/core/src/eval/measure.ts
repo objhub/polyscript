@@ -12,6 +12,9 @@ import { EvalError, isBBox, isWpState, isUserFunc, describeValue, type BBoxValue
 
 export const SOLID_PROPS = ['volume', 'area', 'solids', 'faces', 'edges', 'verts', 'bbox', 'valid'] as const;
 export const PLANAR_PROPS = ['area', 'faces', 'wires', 'bbox'] as const;
+export const FACE_SELECTION_PROPS = ['area', 'faces', 'bbox'] as const;
+export const EDGE_SELECTION_PROPS = ['edges', 'bbox'] as const;
+export const VERTEX_SELECTION_PROPS = ['verts', 'bbox'] as const;
 export const BBOX_PROPS = ['x', 'y', 'z', 'min', 'max', 'center'] as const;
 
 /** `$g.<name>`. Throws `attr.unknown` with the list that applies. */
@@ -19,7 +22,13 @@ export function propertyOf(oc: OC, value: Value, name: string): Value {
   if (isBBox(value)) return bboxProperty(value, name);
   if (isWpState(value)) {
     const state = value as WpState;
-    if (state.shape) return solidProperty(oc, state.shape, name);
+    // A selection measures what it selected, not the solid it was taken
+    // from: `(g | faces <Z).area` is the bottom face, not the whole surface.
+    if (state.selectedEdges.length) return edgeSelectionProperty(oc, state.selectedEdges as unknown as Shape[], name);
+    if (state.selectedVertices.length) return vertexSelectionProperty(oc, state.selectedVertices as unknown as Shape[], name);
+    if (state.selectedFaces.length) return faceSelectionProperty(oc, state.selectedFaces as unknown as Shape[], name);
+    // An outline drawn on a solid's face measures the outline, not the solid.
+    if (state.shape && !state.faces.length && !state.wires.length) return solidProperty(oc, state.shape, name);
     return planarProperty(oc, state, name);
   }
   throw unknownAttr(name, describeValue(value), []);
@@ -37,6 +46,47 @@ function solidProperty(oc: OC, shape: Shape, name: string): Value {
     case 'valid': return oc.isValid(shape);
     default: throw unknownAttr(name, 'a solid', SOLID_PROPS);
   }
+}
+
+function faceSelectionProperty(oc: OC, faces: Shape[], name: string): Value {
+  switch (name) {
+    case 'area': {
+      let a = 0;
+      for (const f of faces) a += oc.getSurfaceArea(f);
+      return round(a);
+    }
+    case 'faces': return faces.length;
+    case 'bbox': return bboxOf(oc, faces);
+    default: throw selectionAttr(name, 'a face selection', FACE_SELECTION_PROPS);
+  }
+}
+
+function edgeSelectionProperty(oc: OC, edges: Shape[], name: string): Value {
+  switch (name) {
+    case 'edges': return edges.length;
+    case 'bbox': return bboxOf(oc, edges);
+    default: throw selectionAttr(name, 'an edge selection', EDGE_SELECTION_PROPS);
+  }
+}
+
+function vertexSelectionProperty(oc: OC, verts: Shape[], name: string): Value {
+  switch (name) {
+    case 'verts': return verts.length;
+    case 'bbox': return bboxOf(oc, verts);
+    default: throw selectionAttr(name, 'a vertex selection', VERTEX_SELECTION_PROPS);
+  }
+}
+
+/** A solid's property asked of a selection: say so, rather than quietly
+ *  answering for the whole solid as it used to. */
+function selectionAttr(name: string, kind: string, props: readonly string[]): EvalError {
+  if ((SOLID_PROPS as readonly string[]).includes(name)) {
+    return new EvalError(`${kind} has no property '${name}'; ${kind} has ${props.join(' ')}`, undefined, {
+      code: 'attr.unknown',
+      hint: `'.${name}' measures a solid: bind the solid before selecting ('g = box ...' then 'g.${name}')`,
+    });
+  }
+  return unknownAttr(name, kind, props);
 }
 
 function planarProperty(oc: OC, state: WpState, name: string): Value {

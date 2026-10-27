@@ -23,11 +23,18 @@ g.bbox        # bounding box, with .x .y .z (sizes) and .min .max .center (lists
 
 A 2D shape (Face / Wire) has `area`, `faces` (regions), `wires` (curves) and `bbox`.
 
+A selection measures what it selected, not the solid it came from:
+`(g | faces <Z).area` is the area of the bottom face. A face selection has `area`,
+`faces` and `bbox`; an edge selection `edges` and `bbox`; a vertex selection
+`verts` and `bbox`. An outline drawn on a face (`g | faces >Z | rect 10 10`) is a 2D
+shape and measures the outline. A solid's property asked of a selection, such as
+`.volume`, stops with `attr.unknown`: measure the solid through its own variable.
+
 The name sits **right after** the variable or the closing parenthesis. It works on a
 parenthesised pipeline and inside a command's arguments:
 
 ```
-(g | faces >Z).solids
+(g | faces >Z).area
 box g.bbox.x 10 10
 ```
 
