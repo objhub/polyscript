@@ -16,9 +16,13 @@
 ### Comparison and Logic
 
 ```
-==  !=  <  >  <=  >=
+==  !=  <  >  <=  >=  ~
 and  or
 ```
+
+`a ~ b` is approximate equality for numbers: `true` when the difference is within
+1% of the larger value. `assert ... tol:` changes the tolerance (see "Measuring and
+checking" below).
 
 ### Conditional
 
