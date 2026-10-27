@@ -223,24 +223,26 @@ describe('edgeLines', () => {
 });
 
 describe('renderGlbRgb with edges', () => {
-  it('draws the visible edges in black and hides the rest', async () => {
+  it('draws the visible edges one pixel wide and hides the rest', async () => {
     const withEdges = renderGlbRgb(await meshDataToGLB(cubeWithEdges()), { width: 400, height: 300 });
     const without = renderGlbRgb(await meshDataToGLB(cube()), { width: 400, height: 300 });
-    let black = 0;
+    // Ink: how much of each pixel the black line took, summed. A line one
+    // pixel wide puts down about one pixel of ink per pixel of length.
+    let ink = 0;
     let changed = 0;
     for (let i = 0; i < withEdges.data.length; i += 3) {
-      if (withEdges.data[i] < 40 && withEdges.data[i + 1] < 40 && withEdges.data[i + 2] < 40) black++;
-      if (withEdges.data[i] !== without.data[i]) changed++;
+      if (withEdges.data[i] === without.data[i]) continue;
+      changed++;
+      ink += 1 - withEdges.data[i] / without.data[i];
     }
-    // Nine edges are visible from the iso view, each a few hundred pixels
-    // long at one pixel wide; the three hidden ones add nothing.
-    expect(black).toBeGreaterThan(400);
-    expect(black).toBeLessThan(400 * 300 * 0.03);
+    // The nine edges seen from the iso view project to about 1390 pixels
+    // (the frame crops the bottom corner a little); the three hidden ones
+    // add nothing. The old square brush put down about twice this.
+    expect(ink).toBeGreaterThan(1390 * 0.8);
+    expect(ink).toBeLessThan(1390 * 1.1);
     // Only the lines differ: the faces and the background are untouched.
-    // Supersampling greys the pixels a line half covers, so more pixels
-    // change than are black, but not many more.
-    expect(changed).toBeGreaterThan(black);
-    expect(changed).toBeLessThan(black * 4);
+    // Antialiasing spreads a line over two or three pixels across.
+    expect(changed).toBeLessThan(ink * 3);
   });
 });
 

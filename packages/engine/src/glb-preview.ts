@@ -17,13 +17,14 @@
  * specular with its multi-scattering compensation from three's own DFG
  * table -- and sRGB output. The background is the card's #f7fafc. A LINES
  * primitive (the CAD edges a preview GLB carries) is drawn over the faces
- * in its material's colour, one pixel wide, hidden where a face is nearer.
+ * in its material's colour, one pixel wide (see LINE_WIDTH),
+ * hidden where a face is nearer.
  *
  * What it leaves out: environment lighting (the viewers have none), normal
  * maps and textures (the GLBs objhub writes carry none), the roughness
  * fudge three adds from screen-space normal derivatives (invisible at
- * card size). Edges are antialiased by supersampling, as the viewers'
- * MSAA does.
+ * card size). Faces are antialiased by supersampling, as the viewers'
+ * MSAA does; edges by their coverage of each output pixel.
  */
 
 import { DFG_LUT, DFG_LUT_SIZE } from './dfg-lut.js';
@@ -681,65 +682,130 @@ export function renderGlbRgb(glb: Uint8Array, options: GlbPreviewOptions = {}): 
     }
   }
 
-  // Edges over the faces: a LINES primitive, one output pixel wide, hidden
-  // behind nearer faces. A line lies exactly on the faces it borders, so the
-  // depth test looks at the sample's neighbours too and allows a little
-  // slack; otherwise the line loses half its pixels to the very face it
-  // outlines, as three's own LineSegments do.
+  const out = downsample(rgb, W, ss, width, height);
+  drawLines(out, scene.lines, zbuf, ss, (x, y, z) => {
+    const px = x - eye[0], py = y - eye[1], pz = z - eye[2];
+    const vx = px * xx + py * xy + pz * xz;
+    const vy = px * yx + py * yy + pz * yz;
+    const depth = -(px * zx + py * zy + pz * zz);
+    if (depth < NEAR || depth > FAR) return null;
+    const iw = 1 / depth;
+    return [((f / aspect) * vx * iw * 0.5 + 0.5) * width, (0.5 - f * vy * iw * 0.5) * height, iw];
+  });
+  return out;
+}
+
+/** Edge width in output pixels. three draws a LINES primitive one device
+ *  pixel wide whatever the screen, so the hover view's edges are thinner in
+ *  CSS pixels the denser the screen. This matches it on a 2x screen with the
+ *  card around 320 CSS pixels wide (an 800-pixel PNG shown on 640 device
+ *  pixels). The old one-pixel square brush, snapped to the sample grid, drew
+ *  about twice as heavy as that. */
+const LINE_WIDTH = 1.0;
+
+/**
+ * Edges over the faces, on the downsampled image: each output pixel takes the
+ * line's colour by how much of it the line covers -- the overlap of the pixel
+ * with a band LINE_WIDTH wide, measured across the line -- times the share of
+ * its samples where the line is not behind a face. A line lies exactly on
+ * the faces it borders, so a sample's depth test looks at its neighbours too
+ * and allows a little slack; otherwise the line loses half its pixels to the
+ * very face it outlines, as three's own LineSegments do. Coverage is the
+ * largest over a primitive's segments, so where a polyline bends the joint is
+ * not drawn twice.
+ */
+function drawLines(
+  img: RgbImage,
+  lines: GlbLines[],
+  zbuf: Float32Array,
+  ss: number,
+  project: (x: number, y: number, z: number) => [number, number, number] | null,
+): void {
   const LINE_SLACK = 0.002;
-  for (const line of scene.lines) {
+  const { width, height, data } = img;
+  const W = width * ss, H = height * ss;
+  const half = LINE_WIDTH / 2;
+  const reach = half + 1;
+  const cover = new Float32Array(width * height);
+  for (const line of lines) {
+    cover.fill(0);
     const pos = line.positions;
     const count = pos.length / 3;
     const sx = new Float64Array(count), sy = new Float64Array(count), iw = new Float64Array(count);
     const ok = new Uint8Array(count);
     for (let i = 0; i < count; i++) {
-      const px = pos[i * 3] - eye[0], py = pos[i * 3 + 1] - eye[1], pz = pos[i * 3 + 2] - eye[2];
-      const vx = px * xx + py * xy + pz * xz;
-      const vy = px * yx + py * yy + pz * yz;
-      const depth = -(px * zx + py * zy + pz * zz);
-      if (depth < NEAR || depth > FAR) continue;
+      const p = project(pos[i * 3], pos[i * 3 + 1], pos[i * 3 + 2]);
+      if (!p) continue;
       ok[i] = 1;
-      iw[i] = 1 / depth;
-      sx[i] = ((f / aspect) * vx * iw[i] * 0.5 + 0.5) * W;
-      sy[i] = (0.5 - f * vy * iw[i] * 0.5) * H;
+      [sx[i], sy[i], iw[i]] = p;
     }
-    const cr = srgbEncode(line.color[0]), cg = srgbEncode(line.color[1]), cb = srgbEncode(line.color[2]);
-    const half = ss / 2;
     const idx = line.indices;
     for (let t = 0; t + 1 < idx.length; t += 2) {
       const a = idx[t], b = idx[t + 1];
       if (!ok[a] || !ok[b]) continue;
       const x0 = sx[a], y0 = sy[a], x1 = sx[b], y1 = sy[b];
-      const steps = Math.ceil(Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0)) / half) + 1;
-      for (let k = 0; k <= steps; k++) {
-        const u = k / steps;
-        const x = x0 + (x1 - x0) * u, y = y0 + (y1 - y0) * u;
-        const z = iw[a] + (iw[b] - iw[a]) * u; // 1/w is linear on screen
-        const px0 = Math.max(0, Math.floor(x - half)), px1 = Math.min(W - 1, Math.ceil(x + half) - 1);
-        const py0 = Math.max(0, Math.floor(y - half)), py1 = Math.min(H - 1, Math.ceil(y + half) - 1);
-        for (let py = py0; py <= py1; py++) {
-          for (let px = px0; px <= px1; px++) {
-            let near = zbuf[py * W + px];
-            for (let dy = -1; dy <= 1; dy++) {
-              const ny2 = py + dy;
-              if (ny2 < 0 || ny2 >= H) continue;
-              for (let dx = -1; dx <= 1; dx++) {
-                const nx2 = px + dx;
-                if (nx2 < 0 || nx2 >= W) continue;
-                const zn = zbuf[ny2 * W + nx2];
-                if (zn < near) near = zn;
+      const dx = x1 - x0, dy = y1 - y0;
+      const len2 = dx * dx + dy * dy;
+      // Walk the segment along its longer axis, a pixel at a time, and
+      // look at the pixels across it within reach.
+      const steep = Math.abs(dy) > Math.abs(dx);
+      const lo = Math.floor((steep ? Math.min(y0, y1) : Math.min(x0, x1)) - reach);
+      const hi = Math.ceil((steep ? Math.max(y0, y1) : Math.max(x0, x1)) + reach);
+      const slope = steep ? (dy === 0 ? 0 : dx / dy) : (dx === 0 ? 0 : dy / dx);
+      const across = reach * Math.hypot(1, slope);
+      for (let m = lo; m <= hi; m++) {
+        const mc = m + 0.5;
+        // Where the segment's line crosses this row (or column), clamped to the segment.
+        const tMajor = steep ? (dy === 0 ? 0 : (mc - y0) / dy) : (dx === 0 ? 0 : (mc - x0) / dx);
+        const tc = Math.min(1, Math.max(0, tMajor));
+        const c = steep ? x0 + dx * tc : y0 + dy * tc;
+        const n0 = Math.floor(c - across), n1 = Math.ceil(c + across);
+        for (let n = n0; n <= n1; n++) {
+          const px = steep ? n : m, py = steep ? m : n;
+          if (px < 0 || px >= width || py < 0 || py >= height) continue;
+          const xc = px + 0.5, yc = py + 0.5;
+          // Distance from the pixel centre to the segment.
+          let u = len2 > 0 ? ((xc - x0) * dx + (yc - y0) * dy) / len2 : 0;
+          u = Math.min(1, Math.max(0, u));
+          const d = Math.hypot(x0 + dx * u - xc, y0 + dy * u - yc);
+          const overlap = Math.min(d + half, 0.5) - Math.max(d - half, -0.5);
+          if (overlap <= 0) continue;
+          const at = py * width + px;
+          if (overlap <= cover[at]) continue;
+          // The share of this pixel's samples the line is in front of.
+          const z = iw[a] + (iw[b] - iw[a]) * u; // 1/w is linear on screen
+          let seen = 0;
+          for (let sy2 = py * ss; sy2 < (py + 1) * ss; sy2++) {
+            for (let sx2 = px * ss; sx2 < (px + 1) * ss; sx2++) {
+              let near = zbuf[sy2 * W + sx2];
+              for (let oy = -1; oy <= 1; oy++) {
+                const ny = sy2 + oy;
+                if (ny < 0 || ny >= H) continue;
+                for (let ox = -1; ox <= 1; ox++) {
+                  const nx = sx2 + ox;
+                  if (nx < 0 || nx >= W) continue;
+                  const zn = zbuf[ny * W + nx];
+                  if (zn < near) near = zn;
+                }
               }
+              if (z >= near * (1 - LINE_SLACK)) seen++;
             }
-            if (z < near * (1 - LINE_SLACK)) continue;
-            const at = (py * W + px) * 3;
-            rgb[at] = cr; rgb[at + 1] = cg; rgb[at + 2] = cb;
           }
+          const v = (overlap * seen) / (ss * ss);
+          if (v > cover[at]) cover[at] = v;
         }
       }
     }
+    const cr = srgbEncode(line.color[0]), cg = srgbEncode(line.color[1]), cb = srgbEncode(line.color[2]);
+    for (let i = 0; i < cover.length; i++) {
+      const k = cover[i];
+      if (k <= 0) continue;
+      const o = i * 3;
+      data[o] = Math.round(data[o] + (cr - data[o]) * k);
+      data[o + 1] = Math.round(data[o + 1] + (cg - data[o + 1]) * k);
+      data[o + 2] = Math.round(data[o + 2] + (cb - data[o + 2]) * k);
+    }
   }
-
-  return downsample(rgb, W, ss, width, height);
 }
 
 function downsample(rgb: Uint8Array, W: number, ss: number, width: number, height: number): RgbImage {
