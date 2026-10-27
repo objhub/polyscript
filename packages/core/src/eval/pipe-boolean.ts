@@ -15,6 +15,7 @@ import type { Expression, Diff, Union, Inter } from '../ast.js';
 import type { WpState } from '../ocp-kernel.js';
 import { wpDiff, wpUnion, wpInter } from '../ocp-kernel.js';
 import { mergeColorMaps } from '../ocp-kernel/types.js';
+import { wpUnionAll } from '../ocp-kernel/boolean.js';
 import { isWpState, describeValue, EvalError, type Value } from './types.js';
 
 export type BooleanKind = 'union' | 'diff' | 'inter';
@@ -34,8 +35,19 @@ function isEmpty(t: WpState): boolean {
   return !t.shape && t.faces.length === 0 && t.wires.length === 0;
 }
 
-/** Fold `tools` into `state` with one boolean per tool. */
+/** Fold `tools` into `state` with one boolean per tool -- except a union of
+ *  three or more solids, which is one n-ary fuse (wpUnionAll). */
 export function applyBoolean(state: WpState, tools: WpState[], kind: BooleanKind): WpState {
+  if (kind === 'union' && state.shape) {
+    const live = tools.filter((t) => !isEmpty(t));
+    if (live.length >= 2 && live.every((t) => t.shape)) {
+      const result = wpUnionAll(state, live);
+      let colorMap = state.colorMap;
+      for (const t of live) colorMap = mergeColorMaps(colorMap, t.colorMap);
+      if (colorMap) result.colorMap = colorMap;
+      return result;
+    }
+  }
   for (const tool of tools) {
     if (isEmpty(tool)) continue;
     if (kind === 'diff') {

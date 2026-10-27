@@ -478,9 +478,62 @@ export class Evaluator {
       const left = this.evalExpr(node.left);
       return left ? left : this.evalExpr(node.right);
     }
+    if (node.op === '+' && node.left.type === 'BinOp' && node.left.op === '+') {
+      return this.evalPlusChain(node);
+    }
 
     const left = this.evalExpr(node.left);
     const right = this.evalExpr(node.right);
+    return this.applyBinOp(node, left, right);
+  }
+
+  /**
+   * `a + b + c + ...`: the parser folds left, so the chain is a `+` whose
+   * left operand is another `+`. Collected, a run of three or more solids
+   * goes through one n-ary union (wpUnionAll) instead of a pairwise fold,
+   * which is where an assembly spent most of its time (devel/perf.md
+   * 2026-10-27). The operands are still evaluated left to right, and
+   * anything that is not part of a run of shapes is applied pairwise as it
+   * comes, so `1 + "a" + box` fails at the same operator with the same
+   * message as before, and `box + box + 1` fuses the boxes before it fails.
+   */
+  private evalPlusChain(node: BinOp): Value {
+    const operands: Expression[] = [];
+    const ops: BinOp[] = [];          // ops[i] joins operands[i] and operands[i + 1]
+    let n: Expression = node;
+    while (n.type === 'BinOp' && n.op === '+') { operands.unshift(n.right); ops.unshift(n); n = n.left; }
+    operands.unshift(n);
+
+    // Exactly one of the two holds the value so far: `run` while the value
+    // is a shape or a run of shapes not yet joined, `acc` otherwise.
+    let acc: Value = null;
+    let run: WpState[] = [];
+    let runOp: BinOp = ops[0];        // where a failure of the run's union is reported
+    const take = (v: Value, op: BinOp) => {
+      if (isWpState(v)) { run = [v as WpState]; runOp = op; acc = null; } else { acc = v; run = []; }
+    };
+    take(this.evalExpr(operands[0]), ops[0]);
+    for (let i = 1; i < operands.length; i++) {
+      const v = this.evalExpr(operands[i]);
+      const op = ops[i - 1];
+      if (run.length && isWpState(v)) { run.push(v as WpState); continue; }
+      const left = run.length ? this.unionRun(run, runOp) : acc;
+      take(this.applyBinOp(op, left, v), op);
+    }
+    return run.length ? this.unionRun(run, runOp) : acc;
+  }
+
+  private unionRun(run: WpState[], op: BinOp): Value {
+    if (run.length === 1) return run[0];
+    try {
+      return applyBoolean(run[0], run.slice(1), 'union');
+    } catch (e) {
+      if (e instanceof Error && !(e instanceof EvalError)) throw new EvalError(e.message, op.loc);
+      throw e;
+    }
+  }
+
+  private applyBinOp(node: BinOp, left: Value, right: Value): Value {
 
     // Shape operators: `a + b` union, `a - b` diff, `a * b` inter. Same
     // semantics as the pipe ops (a list operand folds, an empty tool is a

@@ -85,7 +85,9 @@ describe('union of parts that are apart', () => {
 
   it('fuses a third part into the compound when it reaches one of them', () => {
     const k = counting();
-    const r = build('(box 10 10 10) + (box 10 10 10 | translate 30 0 0) + (box 10 10 10 | translate 35 0 0)', k.oc);
+    // Bound to a variable so the second `+` is a pair, not a chain of three
+    // (a chain is one n-ary fuse, union-nary.test.ts).
+    const r = build('two = (box 10 10 10) + (box 10 10 10 | translate 30 0 0)\ntwo + (box 10 10 10 | translate 35 0 0)', k.oc);
     expect(k.fuses()).toBe(1);
     expect(facts(r)).toMatchObject({ solids: 2, volume: 2500 });
   });

@@ -341,14 +341,17 @@ describe('boolean operations', () => {
       expect(cuts[1].args[0]).not.toBe(cuts[0].args[0]);
     });
 
-    it('union [a, b] with variables fuses each element', () => {
+    it('union [a, b] with variables fuses all three in one n-ary fuse', () => {
       const oc = createMockOC();
       const evaluator = new Evaluator({ oc });
       const ast = parse('b = cylinder 3 30\nc = sphere 4\nbox 20 20 20 | union [b, c]');
       const result = evaluator.evaluate(ast);
 
       expect(isWpState(result)).toBe(true);
-      expect(oc._calls.filter((c: any) => c.method === 'fuse').length).toBe(2);
+      expect(oc._calls.filter((c: any) => c.method === 'fuse').length).toBe(0);
+      const all = oc._calls.filter((c: any) => c.method === 'fuseAll');
+      expect(all.length).toBe(1);
+      expect(all[0].args[0].length).toBe(3);
     });
 
     it('a parenthesised pipeline is a value inside if/then/else', () => {

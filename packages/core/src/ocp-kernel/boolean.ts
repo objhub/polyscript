@@ -140,16 +140,20 @@ const APART_GAP = 1e-6;
  * sides, not a compound of compounds), as a fuse result is.
  */
 function compoundIfApart(oc: OC, a: Shape, b: Shape): Shape | null {
-  const p = oc.getBoundingBox(a, BBOX_LOOSE);
-  const q = oc.getBoundingBox(b, BBOX_LOOSE);
-  const apart = p.xmax + APART_GAP < q.xmin || q.xmax + APART_GAP < p.xmin
-    || p.ymax + APART_GAP < q.ymin || q.ymax + APART_GAP < p.ymin
-    || p.zmax + APART_GAP < q.zmin || q.zmax + APART_GAP < p.zmin;
-  if (!apart) return null;
+  if (boxesMeet(oc.getBoundingBox(a, BBOX_LOOSE), oc.getBoundingBox(b, BBOX_LOOSE))) return null;
   const sa = oc.getSubShapes(a, 'solid');
   const sb = oc.getSubShapes(b, 'solid');
   if (!sa.length || !sb.length) return null;
   return oc.makeCompound([...sa, ...sb]);
+}
+
+type BBox = ReturnType<OC['getBoundingBox']>;
+
+/** Overlapping, or closer than APART_GAP on every axis. */
+function boxesMeet(p: BBox, q: BBox): boolean {
+  return !(p.xmax + APART_GAP < q.xmin || q.xmax + APART_GAP < p.xmin
+    || p.ymax + APART_GAP < q.ymin || q.ymax + APART_GAP < p.ymin
+    || p.zmax + APART_GAP < q.zmin || q.zmax + APART_GAP < p.zmin);
 }
 
 /**
@@ -164,6 +168,68 @@ function fuse3D(oc: OC, a: Shape, b: Shape): Shape {
     console.warn(`fuse failed in union; falling back to compound: ${err instanceof Error ? err.message : String(err)}`);
     return oc.makeCompound([a, b]);
   }
+}
+
+/**
+ * Union of three or more solids in one pass (devel/perf.md 2026-10-27,
+ * proposal 4). A pairwise fold fuses the growing result against each next
+ * operand, so the faces of the first are intersected again at every step;
+ * BRepAlgoAPI_Fuse given all arguments at once intersects each pair of
+ * faces once. On bot/toy/rubic-cube the fuses went from 68.6s to 37.1s.
+ *
+ * The operands are first grouped into clusters whose bounding boxes meet
+ * (transitively): each cluster is one n-ary fuse, and clusters that are
+ * apart are laid side by side as a compound, as compoundIfApart does for a
+ * pair -- so a print plate of parts that never touch costs no fuse at all.
+ * The result equals the pairwise fold's up to the seams a fuse leaves in
+ * its faces, which the fold leaves too.
+ *
+ * Every operand holds a solid (applyBoolean checks). A drawing on `s` is
+ * kept, as in applyBool.
+ */
+export function wpUnionAll(s: WpState, tools: WpState[]): WpState {
+  const { oc } = s;
+  const shapes = [s.shape as Shape, ...tools.map((t) => t.shape as Shape)];
+  const results: Shape[] = [];
+  for (const members of clustersByBox(oc, shapes)) {
+    if (members.length === 1) { results.push(members[0]); continue; }
+    let fused: Shape;
+    try {
+      fused = ensureSolid(oc, oc.fuseAll(members));
+    } catch (err) {
+      console.warn(`fuse failed in union; falling back to compound: ${err instanceof Error ? err.message : String(err)}`);
+      fused = oc.makeCompound(members);
+    }
+    fused = pruneDebrisSolids(oc, fused);
+    warnIfUnionVolumeImpossible(oc, members, fused);
+    results.push(fused);
+  }
+  if (results.length === 1) return cloneState(s, { shape: results[0] });
+  return cloneState(s, { shape: oc.makeCompound(results.flatMap((r) => oc.getSubShapes(r, 'solid'))) });
+}
+
+/** Groups of shapes connected by meeting bounding boxes, each in the
+ *  order the shapes were given; the groups in the order of their first
+ *  member, so the result is deterministic. */
+function clustersByBox(oc: OC, shapes: Shape[]): Shape[][] {
+  const boxes = shapes.map((sh) => oc.getBoundingBox(sh, BBOX_LOOSE));
+  const parent = shapes.map((_, i) => i);
+  const find = (i: number): number => {
+    while (parent[i] !== i) i = parent[i];
+    return i;
+  };
+  for (let i = 0; i < shapes.length; i++) {
+    for (let j = i + 1; j < shapes.length; j++) {
+      if (boxesMeet(boxes[i], boxes[j])) parent[find(j)] = find(i);
+    }
+  }
+  const groups = new Map<number, Shape[]>();
+  shapes.forEach((sh, i) => {
+    const root = find(i);
+    const g = groups.get(root);
+    if (g) g.push(sh); else groups.set(root, [sh]);
+  });
+  return [...groups.values()];
 }
 
 /** Relative slack for the volume invariants below, against the larger
@@ -214,7 +280,30 @@ function warnIfVolumeImpossible(oc: OC, op: BoolOp, a: Shape, b: Shape, r: Shape
     if (vr > va + vb + tol) problem = `came out at ${fmt(vr)}, more than both operands together (${fmt(va + vb)})`;
     else if (vr < Math.max(va, vb) - tol) problem = `came out at ${fmt(vr)}, smaller than the larger operand (${fmt(Math.max(va, vb))})`;
   }
-  if (!problem) return;
+  if (problem) warnBooleanVolume(name, problem);
+}
+
+/** The union invariant for n operands: between the largest and their sum.
+ *  Each operand's integration error adds up, so the slack is against the
+ *  sum rather than the largest. */
+function warnIfUnionVolumeImpossible(oc: OC, operands: Shape[], r: Shape): void {
+  let vs: number[], vr: number;
+  try {
+    if (typeof oc.getVolume !== 'function') return;
+    vs = operands.map((o) => Math.abs(oc.getVolume(o)));
+    vr = Math.abs(oc.getVolume(r));
+  } catch {
+    return;
+  }
+  if (vs.some((v) => !(v > 0))) return;
+  const sum = vs.reduce((a, b) => a + b, 0);
+  const max = Math.max(...vs);
+  const tol = BOOL_VOLUME_TOL * sum;
+  if (vr > sum + tol) warnBooleanVolume('union', `came out at ${fmt(vr)}, more than all ${vs.length} operands together (${fmt(sum)})`);
+  else if (vr < max - tol) warnBooleanVolume('union', `came out at ${fmt(vr)}, smaller than the largest operand (${fmt(max)})`);
+}
+
+function warnBooleanVolume(name: string, problem: string): void {
   pushWarning(`${name}: the result ${problem} -- the kernel's boolean failed`, {
     code: 'check.boolean-volume',
     hint: 'OCCT is weak where surfaces nearly touch or a cone apex sits on the other operand -- '
