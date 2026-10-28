@@ -8,6 +8,7 @@
  */
 
 import type { OC, Shape, WpState } from '../ocp-kernel/types.js';
+import { shapesApart } from '../ocp-kernel/boolean.js';
 import { EvalError, isBBox, isWpState, isUserFunc, describeValue, type BBoxValue, type Value } from './types.js';
 
 export const SOLID_PROPS = ['volume', 'area', 'solids', 'faces', 'edges', 'verts', 'bbox', 'valid'] as const;
@@ -140,17 +141,16 @@ function unknownAttr(name: string, kind: string, props: readonly string[]): Eval
 }
 
 /**
- * `clear(a, b)`: the two solids share no volume. A bbox miss answers without a
- * boolean; otherwise one `common` decides. Touching counts as clear: a part
- * that sits exactly on another has zero common volume.
+ * `clear(a, b)`: the two solids share no volume. A bbox miss or a measured
+ * gap (shapesApart) answers without a boolean; only when the two touch or
+ * overlap does one `common` decide. Touching counts as clear: a part that
+ * sits exactly on another has zero common volume, which the distance alone
+ * cannot tell from overlap. On an assembled mechanism the two clear() calls
+ * were 25s of `common` and are 6.5s of distance (devel/perf.md 2026-10-28).
  */
 export function shapesClear(oc: OC, a: Value, b: Value): boolean {
   const sa = solidOf(a, 'clear'), sb = solidOf(b, 'clear');
-  const ba = oc.getBoundingBox(sa), bb = oc.getBoundingBox(sb);
-  const eps = 1e-6;
-  if (ba.xmax < bb.xmin - eps || bb.xmax < ba.xmin - eps
-    || ba.ymax < bb.ymin - eps || bb.ymax < ba.ymin - eps
-    || ba.zmax < bb.zmin - eps || bb.zmax < ba.zmin - eps) return true;
+  if (shapesApart(oc, sa, sb)) return true;
   const common = oc.common(sa, sb);
   const v = oc.getVolume(common);
   const ref = Math.max(Math.min(oc.getVolume(sa), oc.getVolume(sb)), 1e-12);

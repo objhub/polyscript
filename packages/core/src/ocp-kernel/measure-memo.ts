@@ -17,14 +17,22 @@
  * costs one Map lookup, and can never return stale geometry because it
  * holds no geometry, only numbers.
  *
- * Only the three measurements are memoized. Sub-shape queries return fresh
+ * Only the measurements are memoized. Sub-shape queries return fresh
  * handles each call, so a per-handle key would never hit on them anyway.
+ *
+ * distanceBetween takes two handles and is keyed under the first with the
+ * second in the key. That is safe because the kernel never reuses a handle
+ * number: release and releaseSince leave the counter alone, and releaseAll,
+ * which resets it, clears this cache. An entry whose second handle was
+ * released can therefore never be hit by a new shape. It pays when a model
+ * unions two sub-assemblies and then asserts clear() on the same pair
+ * (bot/toy/rubic-cube: one 3s query saved, devel/perf.md 2026-10-28).
  */
 
 import type { OC } from './types.js';
 
 /** Methods memoized by their first argument, the handle. */
-export const MEASURED: ReadonlySet<string> = new Set(['getVolume', 'getSurfaceArea', 'getBoundingBox']);
+export const MEASURED: ReadonlySet<string> = new Set(['getVolume', 'getSurfaceArea', 'getBoundingBox', 'distanceBetween']);
 
 /** Methods that free handles: their entries must go with them. */
 const RELEASES_ONE = 'release';

@@ -9,6 +9,8 @@ import { memoizeMeasures } from '../src/ocp-kernel/measure-memo.js';
 import { initOC } from '../src/ocp-kernel/init.js';
 import type { OC } from '../src/ocp-kernel/types.js';
 
+type AnyFn = (...args: unknown[]) => unknown;
+
 let kernel: OcctKernel;
 beforeAll(async () => {
   await initOC();
@@ -21,7 +23,7 @@ function counting() {
     get(t, p, r) {
       const v = Reflect.get(t, p, r);
       if (typeof v !== 'function' || typeof p !== 'string') return v;
-      return (...a: unknown[]) => { calls[p] = (calls[p] ?? 0) + 1; return (v as Function).apply(t, a); };
+      return (...a: unknown[]) => { calls[p] = (calls[p] ?? 0) + 1; return (v as AnyFn).apply(t, a); };
     },
   }) as unknown as OC;
   return { oc: memoizeMeasures(counted), calls };
@@ -62,6 +64,25 @@ describe('memoizeMeasures', () => {
     expect(oc.getVolume(again)).toBeCloseTo(8);
     // Whether or not the arena reused the id, the second box is measured.
     expect(calls.getVolume).toBe(2);
+  });
+
+  it('measures the distance of a pair once, per pair', () => {
+    const { oc, calls } = counting();
+    const a = oc.makeBox(10, 10, 10);
+    const b = oc.translate(oc.makeBox(10, 10, 10), 13, 0, 0);
+    const c = oc.translate(oc.makeBox(10, 10, 10), 0, 0, 17);
+    expect(oc.distanceBetween(a, b)).toBeCloseTo(3);
+    expect(oc.distanceBetween(a, b)).toBeCloseTo(3);
+    expect(oc.distanceBetween(a, c)).toBeCloseTo(7);
+    expect(calls.distanceBetween).toBe(2);
+    // A new shape after a release never gets a stale answer: the kernel
+    // does not reuse handle numbers until releaseAll, which empties the memo.
+    oc.release(b);
+    oc.releaseAll();
+    const d = oc.makeBox(10, 10, 10);
+    const e = oc.translate(oc.makeBox(10, 10, 10), 15, 0, 0);
+    expect(oc.distanceBetween(d, e)).toBeCloseTo(5);
+    expect(calls.distanceBetween).toBe(3);
   });
 
   it('does not change what initOC builds', async () => {

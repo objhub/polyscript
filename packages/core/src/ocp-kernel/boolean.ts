@@ -130,17 +130,19 @@ const BBOX_LOOSE = { precise: false, useTriangulation: false } as const;
 const APART_GAP = 1e-6;
 
 /**
- * Two solids whose bounding boxes do not meet share no face, edge or volume,
- * so their union is the two of them side by side -- the compound
- * BRepAlgoAPI_Fuse itself returns for disjoint operands, after a general
- * fuse that intersects every face pair. On a print plate the union of 33
- * parts spent 20s doing that (devel/perf.md 2026-10-27); here it is two bbox
- * reads. Returns null when the boxes meet, or either side holds no solid,
- * and the caller fuses as before. The result is flat (the solids of both
- * sides, not a compound of compounds), as a fuse result is.
+ * Two solids that are apart share no face, edge or volume, so their union is
+ * the two of them side by side -- the compound BRepAlgoAPI_Fuse itself
+ * returns for disjoint operands, after a general fuse that intersects every
+ * face pair. On a print plate the union of 33 parts spent 20s doing that
+ * (devel/perf.md 2026-10-27); here it is two bbox reads, or a distance query
+ * when the boxes meet (an assembled mechanism: parts a tenth of a millimetre
+ * apart whose boxes all overlap, 11s of fuse against 3s of distance,
+ * perf.md 2026-10-28). Returns null when the shapes meet, or either side
+ * holds no solid, and the caller fuses as before. The result is flat (the
+ * solids of both sides, not a compound of compounds), as a fuse result is.
  */
 function compoundIfApart(oc: OC, a: Shape, b: Shape): Shape | null {
-  if (boxesMeet(oc.getBoundingBox(a, BBOX_LOOSE), oc.getBoundingBox(b, BBOX_LOOSE))) return null;
+  if (!shapesApart(oc, a, b)) return null;
   const sa = oc.getSubShapes(a, 'solid');
   const sb = oc.getSubShapes(b, 'solid');
   if (!sa.length || !sb.length) return null;
@@ -148,6 +150,36 @@ function compoundIfApart(oc: OC, a: Shape, b: Shape): Shape | null {
 }
 
 type BBox = ReturnType<OC['getBoundingBox']>;
+
+/**
+ * True when the two shapes are known to be more than APART_GAP from each
+ * other, so no boolean between them has anything to do: their union is a
+ * compound and their intersection empty. A bounding-box miss answers at
+ * once. When the boxes meet and either side is an assembly of several
+ * solids, BRepExtrema_DistShapeShape measures the gap. Touching (gap 0) and
+ * overlapping both read as not apart, which is what every caller needs: a
+ * union then fuses, and clear() runs the boolean that tells the two cases
+ * apart. A failed distance query also counts as not apart, so the caller
+ * falls back to the boolean rather than guessing.
+ *
+ * Two single solids are never measured: the answer is then "not known
+ * apart" and the caller's boolean decides, as before. The distance query
+ * pays on assemblies, whose solids are spread out so few face pairs come
+ * close (9 and 24 parts, 465 and 898 faces: 3s against 11s of fuse or 14s
+ * of common), and fails on two intricate parts that mesh, where every face
+ * is near another (a ring gear of 1442 faces around a gear of 371: 15-26s
+ * against 3s of common, which made bot/functionalprint/spirograph 3.4x
+ * slower; devel/perf.md 2026-10-28).
+ */
+export function shapesApart(oc: OC, a: Shape, b: Shape): boolean {
+  if (!boxesMeet(oc.getBoundingBox(a, BBOX_LOOSE), oc.getBoundingBox(b, BBOX_LOOSE))) return true;
+  if (oc.getSubShapes(a, 'solid').length < 2 && oc.getSubShapes(b, 'solid').length < 2) return false;
+  try {
+    return oc.distanceBetween(a, b) > APART_GAP;
+  } catch {
+    return false;
+  }
+}
 
 /** Overlapping, or closer than APART_GAP on every axis. */
 function boxesMeet(p: BBox, q: BBox): boolean {
@@ -210,7 +242,12 @@ export function wpUnionAll(s: WpState, tools: WpState[]): WpState {
 
 /** Groups of shapes connected by meeting bounding boxes, each in the
  *  order the shapes were given; the groups in the order of their first
- *  member, so the result is deterministic. */
+ *  member, so the result is deterministic.
+ *
+ *  Boxes only, not the distance query shapesApart adds for a pair: measured
+ *  on bot/toy/rubic-cube, refining the clusters by distance cost 42s of
+ *  queries (one per pair of operands, 0.3s for two parts and up to 3.8s for
+ *  two sub-assemblies) to save 25s of fuseAll (devel/perf.md 2026-10-28). */
 function clustersByBox(oc: OC, shapes: Shape[]): Shape[][] {
   const boxes = shapes.map((sh) => oc.getBoundingBox(sh, BBOX_LOOSE));
   const parent = shapes.map((_, i) => i);

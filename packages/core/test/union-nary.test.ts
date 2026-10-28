@@ -13,6 +13,8 @@ import { initOC } from '../src/ocp-kernel/init.js';
 import { drainDiagnostics } from '../src/diagnostics.js';
 import type { OC, WpState } from '../src/ocp-kernel/types.js';
 
+type AnyFn = (...args: unknown[]) => unknown;
+
 let oc: OC;
 beforeAll(async () => {
   oc = await initOC();
@@ -26,8 +28,8 @@ function counting(): { oc: OC; counts: Counts } {
   const k = new Proxy(oc, {
     get(target, prop, recv) {
       const v = Reflect.get(target, prop, recv);
-      if (prop === 'fuse') return (...a: unknown[]) => { counts.fuse++; return (v as Function).apply(target, a); };
-      if (prop === 'fuseAll') return (shapes: unknown[]) => { counts.fuseAll++; counts.fuseAllArgs.push(shapes.length); return (v as Function).call(target, shapes); };
+      if (prop === 'fuse') return (...a: unknown[]) => { counts.fuse++; return (v as AnyFn).apply(target, a); };
+      if (prop === 'fuseAll') return (shapes: unknown[]) => { counts.fuseAll++; counts.fuseAllArgs.push(shapes.length); return (v as AnyFn).call(target, shapes); };
       return typeof v === 'function' ? v.bind(target) : v;
     },
   });
