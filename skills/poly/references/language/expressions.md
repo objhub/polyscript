@@ -52,7 +52,10 @@ box 40 30 (if deep then 20 else 10)                         # an if as an argume
 
 ```
 [expr for var in range(n)]
+[expr for var in list]
 ```
+
+After `in` comes `range(...)` or any list. Each element is bound as it is, so iterating a list of points binds a tuple.
 
 Practical examples:
 
@@ -62,6 +65,10 @@ union [box 10 10 10 at:(i * 15, 0) for i in range(6)]
 
 # Concentric circles
 [r * 5 for r in range(1, 6)]
+
+# A cylinder at each point of a list (p is a tuple, p[0] its x)
+pts = [(0, 0), (20, 0), (20, 10)]
+union [cylinder 2 4 at:(p[0], p[1]) for p in pts]
 ```
 
 Nested comprehensions are also supported:
@@ -96,4 +103,16 @@ Constant: `pi`
 (10, 20, 30)              # tuple
 [(0,0), (10,5), (20,0)]   # list
 ```
+
+Elements are read with `xs[i]` (0-based). Lists are joined with `+`:
+
+```
+a = [(0, 0), (10, 0)]
+b = [(10, 10), (0, 10)]
+polyline (a + b) | extrude 2      # a closed outline of 4 points
+
+pts = a + [(5, 15)]               # one more point: wrap it in [ ]
+```
+
+`+` joins lists only. Two tuples (`(1, 2) + (3, 4)`) or a list and a tuple (`pts + (1, 2)`) are an error, so that adding two points, or appending a point as two numbers, cannot happen by mistake. A shape plus a list is still a union, as before (`base + [boss, rib]`).
 

@@ -48,7 +48,7 @@ export {
 import {
   type Value, type UserFunc,
   Environment, EvalError, MATH_FUNCS,
-  asNumber, asString, asWpState, isWpState, isUserFunc, describeValue,
+  asNumber, asString, asWpState, isWpState, isUserFunc, describeValue, markTuple, isTuple,
   resolveNamedArgs, getNamedNum,
 } from './types.js';
 
@@ -141,7 +141,7 @@ export class Evaluator {
       'VarRef': (e) => this.env.get((e as { name: string }).name),
       'TagRef': (e) => `$${(e as { name: string }).name}`,
       // Compound literals
-      'TupleLit': (e) => (e as { elements: Expression[] }).elements.map(el => this.evalExpr(el)),
+      'TupleLit': (e) => markTuple((e as { elements: Expression[] }).elements.map(el => this.evalExpr(el))),
       'ListLit': (e) => (e as { elements: Expression[] }).elements.map(el => this.evalExpr(el)),
       'ListComp': (e) => this.evalListComp(e as ListComp),
       // Index access
@@ -535,6 +535,33 @@ export class Evaluator {
 
   private applyBinOp(node: BinOp, left: Value, right: Value): Value {
 
+    // List concatenation: `[a, b] + [c]` is `[a, b, c]`, whatever the
+    // elements are -- numbers, tuples, shapes. Checked before the shape
+    // operators, because a list of shapes is also a shape operand: but `+` as
+    // union needs a shape on the left (`base + [boss, rib]`), and a list on
+    // the left never was one, so nothing that used to mean union changes.
+    if (node.op === '+' && (isTuple(left) || isTuple(right)) && !isWpState(left) && !isWpState(right)) {
+      throw new EvalError(
+        `Type error: '+' does not join tuples, got ${describeValue(left)} and ${describeValue(right)}. ` +
+          `To add a point to a list of points, put it in brackets: pts + [(x, y)]`,
+        node.loc,
+      );
+    }
+    if (node.op === '+' && Array.isArray(left) && Array.isArray(right)) {
+      return [...left, ...right];
+    }
+    // A list and a non-list, with no shape on either side (`pts + (1, 2)`,
+    // `xs + 3`): say how to append, instead of "Expected number, got object".
+    // A shape and a list stay the shape operators below.
+    if (node.op === '+' && Array.isArray(left) !== Array.isArray(right) &&
+        !isWpState(left) && !isWpState(right)) {
+      throw new EvalError(
+        `Type error: '+' joins two lists, got ${describeValue(left)} and ${describeValue(right)}. ` +
+          `Put a single element in brackets: xs + [x]`,
+        node.loc,
+      );
+    }
+
     // Shape operators: `a + b` union, `a - b` diff, `a * b` inter. Same
     // semantics as the pipe ops (a list operand folds, an empty tool is a
     // no-op). The parser's greedy argument rule means these only work between
@@ -605,9 +632,15 @@ export class Evaluator {
   private evalListComp(node: ListComp): Value {
     const iterVal = this.evalExpr(node.iterable);
     if (!Array.isArray(iterVal)) {
-      throw new EvalError(`List comprehension iterable must be a list`);
+      throw new EvalError(
+        `List comprehension iterable must be a list, got ${describeValue(iterVal)}`,
+        node.loc,
+      );
     }
-    const items = iterVal.map(v => asNumber(v));
+    // Any list, element by element as it is: `for p in pts` binds each tuple
+    // to `p`. This used to coerce every element to a number, so a list of
+    // points failed with "Expected number, got object" at the comprehension.
+    const items = iterVal;
 
     const result: Value[] = [];
     const childEnv = this.env.child();

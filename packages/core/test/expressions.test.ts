@@ -781,6 +781,37 @@ box 10 10 10`);
     });
 
     // len() takes a list, not a number: it must not go through the numeric coercion of the math builtins
+    describe('list concatenation and comprehension over any list', () => {
+      it('joins two lists with +', () => {
+        expect(evalExpr('x = [1, 2] + [3]')).toEqual([1, 2, 3]);
+        expect(evalExpr('x = [] + [1]')).toEqual([1]);
+        expect(evalExpr('a = [1]\nb = [2, 3]\nx = a + b + [4]')).toEqual([1, 2, 3, 4]);
+      });
+      it('joins lists of points, keeping each point whole', () => {
+        expect(evalExpr('a = [(0, 0), (10, 0)]\nx = a + [(10, 10)]')).toEqual([[0, 0], [10, 0], [10, 10]]);
+      });
+      it('refuses + on a tuple, and says how to append a point', () => {
+        expect(() => evalExpr('x = (1, 2) + (3, 4)')).toThrow(/does not join tuples/);
+        expect(() => evalExpr('pts = [(0, 0)]\nx = pts + (1, 2)')).toThrow(/pts \+ \[\(x, y\)\]/);
+      });
+      it('refuses a list plus a number, and says how to append', () => {
+        expect(() => evalExpr('x = [1, 2] + 3')).toThrow(/joins two lists.*xs \+ \[x\]/);
+      });
+      it('iterates a list of tuples', () => {
+        expect(evalExpr('ps = [(1, 2), (3, 4)]\nx = [p[0] * 10 + p[1] for p in ps]')).toEqual([12, 34]);
+      });
+      it('iterates a list of strings and of lists', () => {
+        expect(evalExpr('x = [s + "!" for s in ["a", "b"]]')).toEqual(['a!', 'b!']);
+        expect(evalExpr('x = [r[1] for r in [[1, 2], [3, 4]]]')).toEqual([2, 4]);
+      });
+      it('still iterates range()', () => {
+        expect(evalExpr('x = [i * 2 for i in range(3)]')).toEqual([0, 2, 4]);
+      });
+      it('says what it got when the iterable is not a list', () => {
+        expect(() => evalExpr('n = 3\nx = [i for i in n]')).toThrow(/must be a list, got number/);
+      });
+    });
+
     it('evaluates len() of a list literal and of range()', () => {
       expect(evalExpr('$x = len([1, 2, 3])')).toBe(3);
       expect(evalExpr('$x = len(range(5))')).toBe(5);

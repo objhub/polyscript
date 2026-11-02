@@ -194,10 +194,28 @@ export function asString(v: Value): string {
 }
 
 /** Short type name of a value, for error messages. */
+/**
+ * Tuples and lists are both arrays at run time; this remembers which arrays
+ * came from a tuple literal, so `+` can join lists without also joining
+ * tuples. `(1, 2) + (3, 4)` reads as adding two points, and silently giving
+ * `(1, 2, 3, 4)` would be wrong; `pts + (1, 2)` reads as appending a point,
+ * and silently appending two numbers would be wrong too.
+ */
+const TUPLES = new WeakSet<object>();
+
+export function markTuple<T extends Value[]>(v: T): T {
+  TUPLES.add(v);
+  return v;
+}
+
+export function isTuple(v: Value): boolean {
+  return Array.isArray(v) && TUPLES.has(v);
+}
+
 export function describeValue(v: Value): string {
   if (isWpState(v)) return 'a shape';
   if (isBBox(v)) return 'a bbox';
-  if (Array.isArray(v)) return 'a list';
+  if (Array.isArray(v)) return TUPLES.has(v) ? 'a tuple' : 'a list';
   if (v === null || v === undefined) return 'nothing';
   return typeof v;
 }
