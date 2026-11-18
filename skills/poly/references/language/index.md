@@ -21,7 +21,7 @@ whole reference (~12k tokens together). Tokens are approximate.
 | `pipe-operations-extrude-revolve-sweep-loft.md` | Pipe Operations > Extrude / Revolve / Sweep / Loft | ~1300 | `draft:` specifies a draft angle (taper) in degrees. A positive value narrows the shape toward the far end ... |
 | `pipe-operations-cut-hole.md` | Pipe Operations > Cut / Hole | ~300 | `hole` can be used from both FaceSelection and PointSelection. |
 | `pipe-operations-face-edge-vertex-selection.md` | Pipe Operations > Face / Edge / Vertex Selection | ~700 | Selectors use short symbols or name aliases: |
-| `pipe-operations-workplane-points.md` | Pipe Operations > Workplane / Points | ~600 | Face selection implicitly creates a workplane for 2D operations. Use explicit `workplane` only when you nee... |
+| `pipe-operations-workplane-points.md` | Pipe Operations > Workplane / Points | ~700 | Face selection implicitly creates a workplane for 2D operations. Use explicit `workplane` only when you nee... |
 | `pipe-operations-transform.md` | Pipe Operations > Transform | ~1700 | `mirror` reflects across the plane perpendicular to the specified axis. `"X"` mirrors across the YZ plane, ... |
 | `variables.md` | Variables | ~200 | A variable is a plain name: give it a value with `=`, then use it wherever a value goes. `def` parameters a... |
 | `param-annotation.md` | @param Annotation (Basic syntax, Range shorthand, Option reference, Choices (dropdown), Practical example, CLI Override) | ~800 | Adding `@param` to a variable turns it into a parameter that can be controlled via a GUI customizer as a sl... |

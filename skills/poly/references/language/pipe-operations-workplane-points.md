@@ -71,3 +71,5 @@ box 80 60 10 | faces top | points (grid 3 2 15) | circle 2 | cut
 
 In a 3D context, `polar` / `grid` behave as array duplication as before. Note that the meaning changes depending on the context.
 
+By default `polar` only translates the copies and leaves their direction alone. With `orient:true` each copy is also turned about the Z axis to face the centre. To repeat a shape that was built away from the origin by turning it in place, write `polar n 0 orient:true`. Radius 0 without `orient:true` puts every copy in the same spot and is reported as a `check.no-effect` warning.
+

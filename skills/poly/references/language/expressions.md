@@ -92,10 +92,12 @@ Angles are in **degrees**. A `def` cannot take one of these names (`def.shadows-
 | `floor(x)` `ceil(x)` `round(x)` | 1 | Round down, up, to nearest |
 | `min(a, b, ...)` `max(a, b, ...)` | 1 or more | Smallest, largest |
 | `radians(d)` / `rad(d)`, `degrees(r)` / `deg(r)` | 1 | Degrees <-> radians |
-| `len(list)` | 1 | Length of a list |
+| `len(x)` | 1 | Number of items in a list, or of characters in a string |
 | `range(n)` / `range(a, b)` / `range(a, b, step)` | 1-3 | List of integers: `range(5)` is `[0,1,2,3,4]`; `b` is excluded; `step` may be negative (0 is an error) |
 
 Constant: `pi`
+
+A call whose result is not a number (`sqrt(-1)`, `acos(2)`) is an error. Where rounding can take a value below zero, clamp it: `sqrt(max(0, x))`.
 
 ### Tuples and Lists
 

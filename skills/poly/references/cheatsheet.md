@@ -287,7 +287,7 @@ if x > 0 then x else -x
 | `floor(x)` `ceil(x)` `round(x)` | 切り捨て、切り上げ、四捨五入 |
 | `min(a, b, ...)` `max(a, b, ...)` | 最小、最大（1個以上） |
 | `radians(d)` / `rad(d)`、`degrees(r)` / `deg(r)` | 度とラジアンの変換 |
-| `len(list)` | リストの長さ |
+| `len(x)` | リストの要素数、文字列の文字数 |
 | `range(n)` / `range(a, b)` / `range(a, b, step)` | 整数のリスト（`b` は含まない） |
 | `clear(a, b)` | 2つのソリッドが重ならなければ `true`（接するだけなら `true`） |
 | `pi` | 円周率（定数） |
