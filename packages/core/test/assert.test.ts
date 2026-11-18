@@ -133,6 +133,17 @@ describe('assert', () => {
     expect(measure('$a = box 10 10 10\n$b = box 10 10 10 at:9 0 0\n', 'clear($a, $b)')).toBe(false);
   });
 
+  // The distance between boundaries is positive for a part swallowed by one
+  // member of an assembly; that is not a gap (devel/lessons.md, 2026-11-18).
+  it('a part inside one solid of an assembly is not clear of it', () => {
+    const posts = '$a = union [cylinder 1 10 | translate (5 * $i) 0 0 for $i in range(3)]\n';
+    const inside = posts + '$p = sphere 0.3 | translate 5 0 0\n';
+    expect(measure(inside, 'clear($p, $a)')).toBe(false);
+    expect(measure(inside, 'clear($a, $p)')).toBe(false);
+    expect(measure(posts + '$p = sphere 0.3 | translate 2.5 0 0\n', 'clear($p, $a)')).toBe(true);
+    expect(measure(inside + '$u = $a | union ($p)\n', '$u.solids')).toBe(3);
+  });
+
   it('does not count as a top-level shape', () => {
     const { result } = run('box 10 10 10\nassert true\n');
     expect(result).not.toBeNull();

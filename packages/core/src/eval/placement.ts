@@ -5,6 +5,7 @@
 import type { Expression, GridPipe, PolarPipe, NamedArg } from '../ast.js';
 import type { OC, Shape, WpState } from '../ocp-kernel.js';
 import { wpPushPoints } from '../ocp-kernel.js';
+import { pushWarning } from '../diagnostics.js';
 import { asNumber, getNamedNum, resolveNamedArgs, type Value } from './types.js';
 
 export function placementToPoints(val: Value): [number, number, number][] {
@@ -138,6 +139,16 @@ export function evalPolarPipe(
 
   if (orient) {
     return applyPolarRotate(oc, state, count, radius);
+  }
+  // Radius 0 without orient puts every copy on the original: the result
+  // looks like one part and the feature that was meant to repeat is there
+  // once (four published models shipped that way, devel/lessons.md 2026-11-18).
+  if (radius === 0 && count > 1) {
+    pushWarning(`polar ${count} 0 places all ${count} copies in the same spot`, {
+      code: 'check.no-effect',
+      hint: 'add orient:true to turn the copies about Z, or give a radius',
+      loc: op.loc,
+    });
   }
   const points = polarPoints(args, op.namedArgs, evalFn);
   return applyArrayPlacement(oc, state, points);

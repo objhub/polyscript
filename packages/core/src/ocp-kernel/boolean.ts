@@ -162,6 +162,13 @@ type BBox = ReturnType<OC['getBoundingBox']>;
  * apart. A failed distance query also counts as not apart, so the caller
  * falls back to the boolean rather than guessing.
  *
+ * The distance is between boundaries, and BRepExtrema reports a solid lying
+ * wholly inside another as distance 0 only when both arguments are single
+ * solids: inside one member of a compound it returns the gap to that
+ * member's wall, so a positive distance alone would call a swallowed part
+ * apart (clear() of a probe inside one of three posts read true, 2026-11).
+ * oneInsideOther rules that case out.
+ *
  * Two single solids are never measured: the answer is then "not known
  * apart" and the caller's boolean decides, as before. The distance query
  * pays on assemblies, whose solids are spread out so few face pairs come
@@ -175,10 +182,43 @@ export function shapesApart(oc: OC, a: Shape, b: Shape): boolean {
   if (!boxesMeet(oc.getBoundingBox(a, BBOX_LOOSE), oc.getBoundingBox(b, BBOX_LOOSE))) return true;
   if (oc.getSubShapes(a, 'solid').length < 2 && oc.getSubShapes(b, 'solid').length < 2) return false;
   try {
-    return oc.distanceBetween(a, b) > APART_GAP;
+    return oc.distanceBetween(a, b) > APART_GAP && !oneInsideOther(oc, a, b);
   } catch {
     return false;
   }
+}
+
+/**
+ * True when some solid of one shape lies inside a solid of the other. Only
+ * asked once the boundaries are known to be apart, so a solid is then
+ * wholly inside or wholly outside another and one of its vertices decides.
+ * A solid whose box does not fit in the other's cannot be inside it, which
+ * leaves few pairs to classify. A solid with no vertex to probe counts as
+ * inside: the caller then runs the boolean instead of guessing.
+ */
+function oneInsideOther(oc: OC, a: Shape, b: Shape): boolean {
+  const sa = oc.getSubShapes(a, 'solid'), sb = oc.getSubShapes(b, 'solid');
+  const ba = sa.map((s) => oc.getBoundingBox(s, BBOX_LOOSE));
+  const bb = sb.map((s) => oc.getBoundingBox(s, BBOX_LOOSE));
+  const inside = (inner: Shape, outer: Shape): boolean => {
+    const v = oc.getSubShapes(inner, 'vertex')[0];
+    if (v === undefined) return true;
+    return oc.containsPoint(outer, oc.vertexPosition(v));
+  };
+  for (let i = 0; i < sa.length; i++) {
+    for (let j = 0; j < sb.length; j++) {
+      if (boxWithin(ba[i], bb[j]) && inside(sa[i], sb[j])) return true;
+      if (boxWithin(bb[j], ba[i]) && inside(sb[j], sa[i])) return true;
+    }
+  }
+  return false;
+}
+
+/** `p` fits in `q`, within APART_GAP. */
+function boxWithin(p: BBox, q: BBox): boolean {
+  return p.xmin >= q.xmin - APART_GAP && p.xmax <= q.xmax + APART_GAP
+    && p.ymin >= q.ymin - APART_GAP && p.ymax <= q.ymax + APART_GAP
+    && p.zmin >= q.zmin - APART_GAP && p.zmax <= q.zmax + APART_GAP;
 }
 
 /** Overlapping, or closer than APART_GAP on every axis. */

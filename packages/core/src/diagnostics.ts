@@ -312,8 +312,9 @@ const EXPLANATIONS: Record<DiagnosticCode, Explanation> = {
   'check.no-effect': {
     title: 'An operation did not change the shape',
     why: 'A `hole` on an empty face selection, a `fillet` whose radius rounded\n'
-      + 'nothing, a `diff` whose tool missed the material. The build succeeds\n'
-      + 'and the feature is simply absent.',
+      + 'nothing, a `diff` whose tool missed the material, a `polar n 0`\n'
+      + 'without `orient:true` (every copy lands on the original). The build\n'
+      + 'succeeds and the feature is simply absent.',
     fix: 'Check the step before it in the trace: what it selected, and whether\n'
       + 'the tool actually overlaps the material. A tool that exactly touches a\n'
       + 'surface is the usual cause -- make it overlap or clear the surface,\n'

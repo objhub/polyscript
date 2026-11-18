@@ -165,6 +165,10 @@ export function wpSweep(s: WpState, profileWire: Wire, profilePlane: Pln): WpSta
  *  is reported. Generous: a rounded corner moves the ratio by a few percent;
  *  a profile that collapsed or flipped mid-sweep leaves it near 0.4 or below. */
 const SWEEP_RATIO_MIN = 0.6;
+/** Largest spread of the tangent's Z component along a path still swept
+ *  with a constant +Z binormal (see sweepFrame). A helix has none; a tapered
+ *  or sampled one has a little. */
+const HELIX_CLIMB_SPREAD = 0.05;
 const SWEEP_RATIO_MAX = 1.4;
 
 /**
@@ -267,7 +271,17 @@ function sweepFrame(oc: OC, spine: Wire): { up?: Dir } {
     const sign = Math.abs(n.z) > 1e-9 ? Math.sign(n.z) : Math.abs(n.y) > 1e-9 ? Math.sign(n.y) : Math.sign(n.x);
     return { up: scale(n, sign) };
   }
-  return tangents.every(t => Math.abs(t.z) < 0.9) ? { up: Z } : {};
+  // Not planar. With a constant +Z binormal the profile only turns about Z
+  // as it travels, keeping the tilt it was given at the start. That is what
+  // a thread or a spring wants and is exact on a helix, which climbs at one
+  // constant angle. On any other space curve the path climbs and dives under
+  // a profile that does not follow, so the tube comes out thinner there with
+  // no warning: 80-87% of area x length on a trefoil knot, inside the band
+  // warnIfSweepDistorted allows (devel/lessons.md 2026-11-18). So +Z only where
+  // the climb is steady; elsewhere corrected Frenet, which follows the path.
+  const tz = tangents.map(t => t.z);
+  const steady = Math.max(...tz) - Math.min(...tz) < HELIX_CLIMB_SPREAD;
+  return steady && tz.every(z => Math.abs(z) < 0.9) ? { up: Z } : {};
 }
 
 function sub(a: Dir, b: Dir): Dir { return { x: a.x - b.x, y: a.y - b.y, z: a.z - b.z }; }

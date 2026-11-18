@@ -590,7 +590,11 @@ export class Evaluator {
       case '/': return r === 0 ? 0 : l / r;
       case '//': return r === 0 ? 0 : Math.floor(l / r);
       case '%': return r === 0 ? 0 : l % r;
-      case '**': return l ** r;
+      case '**': {
+        const p = l ** r;
+        if (!Number.isFinite(p)) throw new EvalError(`${l} ** ${r} is not a number`, node.loc);
+        return p;
+      }
       default:
         throw new EvalError(`Unknown operator: ${node.op}`);
     }
@@ -682,13 +686,26 @@ export class Evaluator {
     // len(list): the one builtin whose argument is not a number
     if (name === 'len') {
       if (argExprs.length !== 1) throw new EvalError(`len() takes 1 argument, got ${argExprs.length}`);
-      return MATH_FUNCS.len(this.evalExpr(argExprs[0]) as unknown as number);
+      const v = this.evalExpr(argExprs[0]);
+      if (!Array.isArray(v) && typeof v !== 'string') {
+        throw new EvalError(`len() takes a list or a string, got ${describeValue(v)}`, node.loc);
+      }
+      return v.length;
     }
 
     // Check math builtins
     if (name in MATH_FUNCS) {
       const args = argExprs.map(e => asNumber(this.evalExpr(e)));
-      return MATH_FUNCS[name](...args);
+      const result = MATH_FUNCS[name](...args);
+      // sqrt(-1), acos(2): NaN would travel on into a placement, where the
+      // kernel hangs on it or builds a solid with a NaN bounding box.
+      if (!Number.isFinite(result)) {
+        throw new EvalError(`${name}(${args.join(', ')}) is not a number`, node.loc, {
+          hint: name === 'sqrt' ? 'the argument is negative; clamp it with max(0, ...) if rounding can take it below zero'
+            : 'the argument is outside the domain of the function',
+        });
+      }
+      return result;
     }
 
     // range() builtin

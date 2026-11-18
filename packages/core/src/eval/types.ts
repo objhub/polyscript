@@ -121,9 +121,10 @@ export const MATH_FUNCS: Record<string, (...args: number[]) => number> = {
   degrees: (rad: number) => rad * 180 / Math.PI,
   rad: (deg: number) => deg * Math.PI / 180,
   deg: (rad: number) => rad * 180 / Math.PI,
-  // len accepts an array at runtime despite the numeric signature; callers
-  // bypass asNumber() for len.  The cast keeps the Record<> key uniform.
-  len: ((arr: unknown) => Array.isArray(arr) ? arr.length : 0) as (...args: number[]) => number,
+  // len takes a list or a string, not a number: the evaluator answers it
+  // itself and never calls this entry, which is here so that `len` is known
+  // as a builtin name.
+  len: ((v: unknown) => (Array.isArray(v) || typeof v === 'string') ? v.length : 0) as (...args: number[]) => number,
 };
 
 /** Argument counts `[min, max]` of the built-in functions, `range` included.
@@ -183,7 +184,12 @@ export function getNamedStr(kwargs: Map<string, Value>, key: string, def?: strin
 // ---------------------------------------------------------------------------
 
 export function asNumber(v: Value): number {
-  if (typeof v === 'number') return v;
+  if (typeof v === 'number') {
+    // The last line of defence: a NaN that reaches the kernel hangs a
+    // rotate and gives a translate a NaN bounding box.
+    if (!Number.isFinite(v)) throw new EvalError(`Expected a finite number, got ${v}`);
+    return v;
+  }
   if (typeof v === 'boolean') return v ? 1 : 0;
   throw new EvalError(`Expected number, got ${typeof v}`);
 }
